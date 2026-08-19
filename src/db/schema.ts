@@ -17,6 +17,7 @@ import {
 
 export const userRoleEnum = pgEnum("user_role", [
   "ADMIN",
+  "OWNER",
   "HOST",
   "GUEST",
 ]);
@@ -65,7 +66,7 @@ export const users = pgTable("users", {
 
   imageUrl: text("image_url"),
 
-  role: userRoleEnum("role").default("GUEST").notNull(),
+  role: userRoleEnum("role"),
 
   createdAt: timestamp("created_at", {
     withTimezone: true,
