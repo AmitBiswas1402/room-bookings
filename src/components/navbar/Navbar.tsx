@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   SignInButton,
   SignUpButton,
@@ -33,21 +33,42 @@ interface SearchState {
   rooms: number;
 }
 
-export default function Navbar() {
+function NavbarContent() {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoaded, isSignedIn } = useUser();
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dbUserRole, setDbUserRole] = useState<string | null>(null);
+
+  const destinationParam = searchParams.get("destination") || searchParams.get("city") || "";
+  const checkInParam = searchParams.get("checkIn") || "";
+  const checkOutParam = searchParams.get("checkOut") || "";
+  const guestsParam = Number(searchParams.get("guests")) || 2;
+  const roomsParam = Number(searchParams.get("rooms")) || 1;
+
   const [searchState, setSearchState] = useState<SearchState>({
-    destination: "",
-    checkIn: "",
-    checkOut: "",
-    adults: 2,
+    destination: destinationParam,
+    checkIn: checkInParam,
+    checkOut: checkOutParam,
+    adults: Math.max(1, guestsParam),
     children: 0,
-    rooms: 1,
+    rooms: Math.max(1, roomsParam),
   });
+
+  useEffect(() => {
+    setSearchState((prev) => ({
+      ...prev,
+      destination: destinationParam,
+      checkIn: checkInParam,
+      checkOut: checkOutParam,
+      adults: guestsParam ? Math.max(1, guestsParam) : prev.adults,
+      children: guestsParam ? 0 : prev.children,
+      rooms: Math.max(1, roomsParam),
+    }));
+  }, [destinationParam, checkInParam, checkOutParam, guestsParam, roomsParam]);
 
   // Fetch DB role for the signed in user
   useEffect(() => {
@@ -73,7 +94,27 @@ export default function Navbar() {
 
   const handleSearchApply = (params: SearchState) => {
     setSearchState(params);
-    console.log("Search applied:", params);
+    const newParams = new URLSearchParams(searchParams.toString());
+
+    if (params.destination && params.destination !== "Anywhere") {
+      newParams.set("destination", params.destination);
+      newParams.set("city", params.destination.toLowerCase());
+    } else {
+      newParams.delete("destination");
+    }
+
+    if (params.checkIn) newParams.set("checkIn", params.checkIn);
+    else newParams.delete("checkIn");
+
+    if (params.checkOut) newParams.set("checkOut", params.checkOut);
+    else newParams.delete("checkOut");
+
+    const totalGuests = params.adults + params.children;
+    if (totalGuests > 0) newParams.set("guests", String(totalGuests));
+    if (params.rooms > 0) newParams.set("rooms", String(params.rooms));
+
+    const qs = newParams.toString();
+    router.push(qs ? `/?${qs}` : "/");
   };
 
   const isRoleSelectionPage = pathname === "/choose-role";
@@ -110,14 +151,16 @@ export default function Navbar() {
                   <div className="text-xs font-bold text-slate-100 group-hover:text-indigo-400 transition-colors">
                     {searchState.destination || "Anywhere"}
                   </div>
-                  <div className="text-[11px] text-slate-400">Popular stays</div>
+                  <div className="text-[11px] text-slate-400">
+                    {searchParams.get("city") ? `City: ${searchParams.get("city")}` : "Popular stays"}
+                  </div>
                 </div>
 
                 {/* Dates */}
                 <div className="px-4 text-left">
                   <div className="text-xs font-bold text-slate-100">
                     {searchState.checkIn
-                      ? `${searchState.checkIn.slice(5)} - ${searchState.checkOut.slice(5) || "End"}`
+                      ? `${searchState.checkIn.slice(5)} - ${searchState.checkOut ? searchState.checkOut.slice(5) : "End"}`
                       : "Any week"}
                   </div>
                   <div className="text-[11px] text-slate-400">Flexible dates</div>
@@ -287,9 +330,13 @@ export default function Navbar() {
                   <Search className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-white">Where to?</div>
+                  <div className="text-xs font-bold text-white">
+                    {searchState.destination || "Where to?"}
+                  </div>
                   <div className="text-[11px] text-slate-400">
-                    Anywhere · Any week · Add guests
+                    {searchState.checkIn
+                      ? `${searchState.checkIn} · ${searchState.adults} guests`
+                      : "Anywhere · Any week · Add guests"}
                   </div>
                 </div>
               </div>
@@ -297,7 +344,7 @@ export default function Navbar() {
           </div>
         )}
 
-        {/* 4. OYO & AIRBNB CATEGORY & CITY STRIP (Shown on main browsing pages) */}
+        {/* 4. OYO & AIRBNB CATEGORY & CITY STRIP */}
         {!isRoleSelectionPage && <CategoryCityStrip />}
       </header>
 
@@ -309,5 +356,17 @@ export default function Navbar() {
         initialDestination={searchState.destination}
       />
     </>
+  );
+}
+
+export default function Navbar() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-20 bg-slate-950 border-b border-slate-800/80 animate-pulse" />
+      }
+    >
+      <NavbarContent />
+    </Suspense>
   );
 }
