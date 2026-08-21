@@ -58,6 +58,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "User synchronization failed" }, { status: 500 });
     }
 
+    // Non-admin users cannot change their role once chosen
+    if (!isAdmin && dbUser.role !== null) {
+      return NextResponse.json(
+        { error: "Your role has already been assigned and cannot be changed." },
+        { status: 403 }
+      );
+    }
+
     // Update role in DB
     const [updatedUser] = await db
       .update(users)

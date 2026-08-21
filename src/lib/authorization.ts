@@ -59,7 +59,11 @@ export async function syncUserInDb(): Promise<DbUser | null> {
   }
 
   // Subsequent Sign-ins (Update)
-  const resolvedRole = isAdmin ? "ADMIN" : existingUser.role;
+  const resolvedRole = isAdmin
+    ? "ADMIN"
+    : existingUser.role === "ADMIN"
+    ? null
+    : existingUser.role;
   const [updatedUser] = await db
     .update(users)
     .set({

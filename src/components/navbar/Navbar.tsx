@@ -42,6 +42,11 @@ function NavbarContent() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dbUserRole, setDbUserRole] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const destinationParam = searchParams.get("destination") || searchParams.get("city") || "";
   const checkInParam = searchParams.get("checkIn") || "";
@@ -186,15 +191,6 @@ function NavbarContent() {
 
           {/* 3. RIGHT-SIDE ACTIONS & CLERK AUTH */}
           <div className="flex items-center gap-3">
-            {/* Host CTA */}
-            <Link
-              href="/choose-role"
-              className="hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-900 border border-transparent hover:border-slate-800 transition-all"
-            >
-              <Building2 className="h-4 w-4 text-indigo-400" />
-              <span>{dbUserRole === "OWNER" ? "Owner Hub" : "Become a Host"}</span>
-            </Link>
-
             {/* Language & Currency Pill */}
             <button
               type="button"
@@ -205,7 +201,7 @@ function NavbarContent() {
             </button>
 
             {/* Clerk Authentication Dynamic State */}
-            {isLoaded && !isSignedIn && (
+            {mounted && isLoaded && !isSignedIn && (
               <div className="flex items-center gap-2">
                 <SignInButton mode="modal">
                   <button className="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-900 transition-colors">
@@ -220,7 +216,7 @@ function NavbarContent() {
               </div>
             )}
 
-            {isLoaded && isSignedIn && (
+            {mounted && isLoaded && isSignedIn && (
               <div className="relative flex items-center gap-2">
                 {/* Role Indicator Pill */}
                 {dbUserRole && (
@@ -262,15 +258,6 @@ function NavbarContent() {
                         {user?.primaryEmailAddress?.emailAddress}
                       </p>
                     </div>
-
-                    <Link
-                      href="/choose-role"
-                      onClick={() => setIsMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-                    >
-                      <User className="h-4 w-4 text-indigo-400" />
-                      <span>Switch / Choose Role</span>
-                    </Link>
 
                     <Link
                       href="/"

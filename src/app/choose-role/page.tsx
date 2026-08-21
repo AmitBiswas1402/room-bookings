@@ -265,8 +265,8 @@ export default function ChooseRolePage() {
               </>
             )}
           </button>
-          <p className="text-xs text-slate-500">
-            You can always update preferences in your profile settings later.
+          <p className="text-xs text-slate-400 font-medium">
+            Please choose carefully. Your role selection is permanent and tailored for your account.
           </p>
         </div>
       </main>
