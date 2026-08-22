@@ -62,7 +62,7 @@ export default function CategoryCityStrip() {
       params.set(key, value);
     }
     const queryString = params.toString();
-    router.push(queryString ? `/?${queryString}` : "/");
+    router.push(queryString ? `/search?${queryString}` : "/search");
   };
 
   const scroll = (direction: "left" | "right") => {
