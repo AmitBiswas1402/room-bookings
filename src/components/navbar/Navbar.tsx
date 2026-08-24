@@ -293,22 +293,24 @@ function NavbarContent() {
 
               {mounted && isLoaded && isSignedIn && (
                 <div className="relative flex items-center gap-2">
-                  {/* Role Indicator Pill */}
+                  {/* Role Indicator Pill (Clickable directly to Owner/Admin Dashboard) */}
                   {dbUserRole && (
-                    <span
-                      className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                    <Link
+                      href={dbUserRole === "OWNER" || dbUserRole === "ADMIN" ? "/dashboard" : "/choose-role"}
+                      className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all duration-200 hover:scale-105 shadow-sm ${
                         dbUserRole === "ADMIN"
-                          ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                          ? "bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 hover:shadow-rose-500/20"
                           : dbUserRole === "OWNER"
-                          ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
-                          : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                          ? "bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 border border-violet-500/40 hover:shadow-violet-500/20"
+                          : "bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40"
                       }`}
+                      title={dbUserRole === "OWNER" || dbUserRole === "ADMIN" ? "Open Owner & Admin Dashboard" : "View Role"}
                     >
-                      {dbUserRole === "ADMIN" && <Shield className="h-3 w-3" />}
-                      {dbUserRole === "OWNER" && <Building2 className="h-3 w-3" />}
-                      {dbUserRole === "GUEST" && <Compass className="h-3 w-3" />}
-                      {dbUserRole}
-                    </span>
+                      {dbUserRole === "ADMIN" && <Shield className="h-3.5 w-3.5" />}
+                      {dbUserRole === "OWNER" && <Building2 className="h-3.5 w-3.5" />}
+                      {dbUserRole === "GUEST" && <Compass className="h-3.5 w-3.5" />}
+                      <span>{dbUserRole}</span>
+                    </Link>
                   )}
 
                   {/* User Dropdown Pill */}
@@ -354,7 +356,7 @@ function NavbarContent() {
 
                       {(dbUserRole === "OWNER" || dbUserRole === "ADMIN") && (
                         <Link
-                          href="/"
+                          href="/dashboard"
                           onClick={() => setIsMenuOpen(false)}
                           className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-violet-300 hover:text-white hover:bg-violet-950/60 transition-colors"
                         >
@@ -365,7 +367,7 @@ function NavbarContent() {
 
                       {dbUserRole === "ADMIN" && (
                         <Link
-                          href="/"
+                          href="/dashboard"
                           onClick={() => setIsMenuOpen(false)}
                           className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-rose-300 hover:text-white hover:bg-rose-950/60 transition-colors"
                         >

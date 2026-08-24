@@ -23,6 +23,13 @@ export interface SleepingArrangement {
   count: number;
 }
 
+export interface HolidayRate {
+  holidayName: string;
+  startDate: string;
+  endDate: string;
+  holidayPrice: number;
+}
+
 export interface Stay {
   id: string;
   title: string;
@@ -31,10 +38,14 @@ export interface Stay {
   cityId: string;
   state: string;
   category: "villas" | "beachfront" | "mountains" | "hotels" | "apartments" | "nature" | "tropical" | "glamping";
+  propertyType?: "HOTEL" | "APARTMENT" | "VILLA" | "HOMESTAY" | "HOSTEL" | "RESORT";
   rating: number;
   reviewsCount: number;
   pricePerNight: number;
   originalPrice: number;
+  holidaySurgePrice?: number;
+  isHolidayAvailable?: boolean;
+  holidayPricing?: HolidayRate[];
   tag: string;
   imageUrl: string;
   gallery: string[];
@@ -49,11 +60,14 @@ export interface Stay {
   lat: number;
   lng: number;
   host: HostInfo;
+  hostEmail?: string;
   sleepingArrangements: SleepingArrangement[];
   reviews: ReviewItem[];
   cleaningFee: number;
   serviceFee: number;
   houseRules: string[];
+  status?: "APPROVED" | "PENDING" | "REJECTED";
+  createdAt?: string;
 }
 
 export const ALL_STAYS: Stay[] = [
@@ -944,7 +958,7 @@ export interface SearchFilterParams {
  */
 export function getStayById(id: string): Stay | undefined {
   const normalizedId = id.toLowerCase().trim();
-  return ALL_STAYS.find(
+  return getAllStays().find(
     (s) =>
       s.id.toLowerCase() === normalizedId ||
       s.id.toLowerCase().replace("-", "") === normalizedId.replace("-", "")
@@ -1003,7 +1017,7 @@ export function searchStays(params: SearchFilterParams): Stay[] {
   const minRating = params.rating || 0;
   const requiredAmenities = params.amenities || [];
 
-  let results = ALL_STAYS.filter((stay) => {
+  let results = getAllStays().filter((stay) => {
     // 1. City Match
     if (cityQuery && cityQuery !== "all") {
       const cityMatches =
@@ -1080,4 +1094,56 @@ export function searchStays(params: SearchFilterParams): Stay[] {
   }
 
   return results;
+}
+
+/**
+ * In-Memory dynamic store for newly published properties
+ */
+export const customStaysStore: Stay[] = [];
+
+/**
+ * Adds a new stay to the active catalog
+ */
+export function addCustomStay(newStay: Stay): Stay {
+  // Check if exists
+  const existingIdx = customStaysStore.findIndex((s) => s.id === newStay.id);
+  if (existingIdx >= 0) {
+    customStaysStore[existingIdx] = newStay;
+  } else {
+    customStaysStore.unshift(newStay);
+  }
+  return newStay;
+}
+
+/**
+ * Deletes a stay by ID
+ */
+export function deleteCustomStay(id: string): boolean {
+  const customIdx = customStaysStore.findIndex((s) => s.id === id);
+  if (customIdx >= 0) {
+    customStaysStore.splice(customIdx, 1);
+    return true;
+  }
+
+  const staticIdx = ALL_STAYS.findIndex((s) => s.id === id);
+  if (staticIdx >= 0) {
+    ALL_STAYS.splice(staticIdx, 1);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Returns all active stays (combines catalog + custom stays)
+ */
+export function getAllStays(): Stay[] {
+  const combined = [...customStaysStore, ...ALL_STAYS];
+  const uniqueMap = new Map<string, Stay>();
+  for (const s of combined) {
+    if (!uniqueMap.has(s.id)) {
+      uniqueMap.set(s.id, s);
+    }
+  }
+  return Array.from(uniqueMap.values());
 }

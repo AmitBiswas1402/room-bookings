@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { ALL_STAYS, searchStays, formatINR, Stay } from "@/data/stays";
 
@@ -101,6 +102,16 @@ export default async function Home({
                 </p>
               </div>
             </div>
+
+            {(dbUser.role === "OWNER" || dbUser.role === "ADMIN") && (
+              <Link
+                href="/dashboard"
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 transition-all hover:scale-105 flex items-center gap-1.5 shrink-0"
+              >
+                <Building2 className="h-4 w-4" />
+                <span>Owner Dashboard &rarr;</span>
+              </Link>
+            )}
           </div>
         )}
 
