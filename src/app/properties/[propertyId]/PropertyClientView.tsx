@@ -36,8 +36,9 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ArrowRight,
+  Building2,
 } from "lucide-react";
-import { Stay, formatINR, calculateNights, formatDateRange, ALL_STAYS } from "@/data/stays";
+import { Stay, HotelRoom, formatINR, calculateNights, formatDateRange, ALL_STAYS } from "@/data/stays";
 import CalendarRangePicker from "@/components/navbar/CalendarRangePicker";
 
 interface PropertyClientViewProps {
@@ -68,12 +69,43 @@ export default function PropertyClientView({
   const [isBookingLoading, setIsBookingLoading] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Available Hotel Rooms
+  const availableRooms: HotelRoom[] =
+    stay.rooms && stay.rooms.length > 0
+      ? stay.rooms
+      : [
+          {
+            id: `${stay.id}-primary`,
+            name: `${stay.category === "villas" ? "Entire Luxury Villa Suite" : "Standard Deluxe King Suite"}`,
+            type: "Deluxe",
+            description: "Primary accommodation featuring complete private access, scenic views, and curated hotel amenities.",
+            maxGuests: stay.maxGuests,
+            bedType: stay.sleepingArrangements[0]?.bedType || "1 King Bed",
+            bedsCount: stay.beds,
+            sizeSqFt: 480,
+            pricePerNight: stay.pricePerNight,
+            originalPrice: stay.originalPrice,
+            holidayPrice: stay.holidaySurgePrice,
+            totalUnits: 1,
+            imageUrl: stay.imageUrl,
+            gallery: stay.gallery,
+            amenities: stay.amenities.slice(0, 5),
+            mealPlan: "Free Breakfast Included",
+            cancellationPolicy: "Free cancellation up to 48 hours before check-in",
+          },
+        ];
+
+  const [selectedRoomId, setSelectedRoomId] = useState<string>(availableRooms[0].id);
+  const selectedRoom = availableRooms.find((r) => r.id === selectedRoomId) || availableRooms[0];
+  const [activeRoomModal, setActiveRoomModal] = useState<HotelRoom | null>(null);
+
   const totalGuests = adults + children;
   const nights = calculateNights(checkIn, checkOut);
   const formattedDates = formatDateRange(checkIn, checkOut);
 
-  // Price calculation
-  const subtotal = stay.pricePerNight * nights;
+  // Dynamic Room Price calculation
+  const nightlyRate = selectedRoom.pricePerNight || stay.pricePerNight;
+  const subtotal = nightlyRate * nights;
   const cleaning = stay.cleaningFee || 1000;
   const service = stay.serviceFee || 750;
   const total = subtotal + cleaning + service;
@@ -319,9 +351,155 @@ export default function PropertyClientView({
               </div>
             </div>
 
+            {/* 3. HOTEL ROOMS & SUITES SECTION */}
+            <div className="space-y-6 pt-6 border-t border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-indigo-400" />
+                    <h3 className="text-xl font-bold text-white">Available Rooms & Suites</h3>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Select your preferred room category for this stay.
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                  {availableRooms.length} {availableRooms.length === 1 ? "Category" : "Categories"} Available
+                </span>
+              </div>
+
+              {/* Room Cards List */}
+              <div className="space-y-4">
+                {availableRooms.map((room) => {
+                  const isSelected = room.id === selectedRoomId;
+                  const roomNightsSubtotal = room.pricePerNight * nights;
+
+                  return (
+                    <div
+                      key={room.id}
+                      className={`p-5 rounded-3xl border transition-all duration-300 flex flex-col md:flex-row gap-5 ${
+                        isSelected
+                          ? "bg-slate-900 border-indigo-500 shadow-xl shadow-indigo-500/10"
+                          : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
+                      }`}
+                    >
+                      {/* Room Photo Thumbnail */}
+                      <div
+                        onClick={() => setActiveRoomModal(room)}
+                        className="relative w-full md:w-56 h-44 rounded-2xl overflow-hidden bg-slate-800 shrink-0 cursor-pointer group"
+                      >
+                        <img
+                          src={room.imageUrl || stay.imageUrl}
+                          alt={room.name}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-indigo-300 border border-indigo-500/30">
+                          {room.type}
+                        </div>
+                        <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-semibold text-slate-300">
+                          {room.gallery?.length || 1} Photos
+                        </div>
+                      </div>
+
+                      {/* Room Details Body */}
+                      <div className="flex-1 flex flex-col justify-between space-y-3">
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="text-base font-bold text-white hover:text-indigo-300 transition-colors">
+                                {room.name}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
+                                <span>{room.bedType}</span>
+                                <span>·</span>
+                                <span>{room.sizeSqFt} sq ft</span>
+                                <span>·</span>
+                                <span>Up to {room.maxGuests} guests</span>
+                              </div>
+                            </div>
+
+                            {room.mealPlan && (
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full shrink-0">
+                                {room.mealPlan}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-slate-300 line-clamp-2 mt-2 leading-relaxed">
+                            {room.description}
+                          </p>
+
+                          {/* Room Amenities Chips */}
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {room.amenities.map((amenity, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2.5 py-0.5 rounded-lg bg-slate-950 text-[10px] font-medium text-slate-300 border border-slate-800"
+                              >
+                                {amenity}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Room Price & Selection Action Row */}
+                        <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-lg font-black text-white">
+                                {formatINR(room.pricePerNight)}
+                              </span>
+                              <span className="text-xs text-slate-400">/ night</span>
+                              <span className="text-xs text-slate-500 line-through">
+                                {formatINR(room.originalPrice)}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-indigo-400 font-semibold mt-0.5">
+                              {nights > 1
+                                ? `${formatINR(roomNightsSubtotal)} for ${nights} nights`
+                                : "Taxes & fees included"}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setActiveRoomModal(room)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                            >
+                              Room Specs
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRoomId(room.id)}
+                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                                isSelected
+                                  ? "bg-emerald-600 text-white shadow-emerald-600/30 flex items-center gap-1.5"
+                                  : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 hover:scale-105"
+                              }`}
+                            >
+                              {isSelected ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                  <span>Selected Room</span>
+                                </>
+                              ) : (
+                                <span>Select Room</span>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Property Description */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-white">About this space</h3>
+            <div className="space-y-3 pt-6 border-t border-slate-800/80">
+              <h3 className="text-lg font-bold text-white">About this property</h3>
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
                 {stay.description}
               </p>
@@ -492,11 +670,11 @@ export default function PropertyClientView({
               <div className="flex items-baseline justify-between">
                 <div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-white">{formatINR(stay.pricePerNight)}</span>
+                    <span className="text-2xl font-black text-white">{formatINR(nightlyRate)}</span>
                     <span className="text-xs text-slate-400">/ night</span>
                   </div>
                   <span className="text-xs text-slate-500 line-through">
-                    {formatINR(stay.originalPrice)}
+                    {formatINR(selectedRoom.originalPrice || stay.originalPrice)}
                   </span>
                 </div>
 
@@ -507,8 +685,38 @@ export default function PropertyClientView({
                 </div>
               </div>
 
+              {/* Selected Room Indicator Badge */}
+              <div className="p-3 rounded-2xl bg-indigo-950/30 border border-indigo-500/30 flex items-center justify-between text-xs">
+                <div>
+                  <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">SELECTED ROOM</div>
+                  <div className="font-bold text-white truncate max-w-[180px]">{selectedRoom.name}</div>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                  {selectedRoom.type}
+                </span>
+              </div>
+
               {/* Booking Picker Box */}
               <div className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
+                {/* Room Category Dropdown Selector */}
+                <div className="p-3 border-b border-slate-800 text-left bg-slate-950/80">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1 flex items-center gap-1">
+                    <Building2 className="h-3 w-3 text-indigo-400" />
+                    <span>ROOM / SUITE CATEGORY</span>
+                  </label>
+                  <select
+                    value={selectedRoomId}
+                    onChange={(e) => setSelectedRoomId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 text-xs font-bold text-white rounded-xl px-2.5 py-2 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-inner"
+                  >
+                    {availableRooms.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} — {formatINR(r.pricePerNight)}/night ({r.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Dates Selector */}
                 <div className="grid grid-cols-2 divide-x divide-slate-800 border-b border-slate-800">
                   <div className="p-3 text-left">
@@ -611,7 +819,7 @@ export default function PropertyClientView({
                   <span>Securing your reservation...</span>
                 ) : (
                   <>
-                    <span>Reserve Stay</span>
+                    <span>Reserve {selectedRoom.name.split(" ")[0]}</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -623,7 +831,7 @@ export default function PropertyClientView({
               <div className="space-y-2.5 pt-4 border-t border-slate-800 text-xs text-slate-300">
                 <div className="flex justify-between">
                   <span className="underline">
-                    {formatINR(stay.pricePerNight)} × {nights} {nights === 1 ? "night" : "nights"}
+                    {formatINR(nightlyRate)} × {nights} {nights === 1 ? "night" : "nights"}
                   </span>
                   <span>{formatINR(subtotal)}</span>
                 </div>
@@ -807,6 +1015,97 @@ export default function PropertyClientView({
             >
               Done
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* DEDICATED ROOM DETAILS & GALLERY MODAL */}
+      {activeRoomModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-2xl rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl relative max-h-[85vh] overflow-y-auto space-y-5 animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-full border border-indigo-500/20 uppercase tracking-wider">
+                  {activeRoomModal.type} Category
+                </span>
+                <h3 className="text-xl font-bold text-white mt-1">{activeRoomModal.name}</h3>
+                <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                  <span>{activeRoomModal.bedType}</span>
+                  <span>·</span>
+                  <span>{activeRoomModal.sizeSqFt} sq ft</span>
+                  <span>·</span>
+                  <span>Max {activeRoomModal.maxGuests} Guests</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveRoomModal(null)}
+                className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Room Photo */}
+            <div className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-800 shadow-md">
+              <img
+                src={activeRoomModal.imageUrl || stay.imageUrl}
+                alt={activeRoomModal.name}
+                className="h-full w-full object-cover"
+              />
+            </div>
+
+            {/* Room Description */}
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">About This Room</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">{activeRoomModal.description}</p>
+            </div>
+
+            {/* Room Amenities Grid */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Room Amenities & Features</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {activeRoomModal.amenities.map((amenity, i) => (
+                  <div
+                    key={i}
+                    className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center gap-2 text-xs text-slate-200"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                    <span className="truncate">{amenity}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pricing & Selection Footer */}
+            <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-base sm:text-lg font-black text-white">
+                  {formatINR(activeRoomModal.pricePerNight)}{" "}
+                  <span className="text-xs font-normal text-slate-400">/ night</span>
+                </div>
+                <span className="text-[11px] text-emerald-400 font-semibold">
+                  {activeRoomModal.mealPlan || "Free Breakfast Included"}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRoomId(activeRoomModal.id);
+                  setActiveRoomModal(null);
+                }}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg ${
+                  selectedRoomId === activeRoomModal.id
+                    ? "bg-emerald-600 text-white shadow-emerald-600/30"
+                    : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 hover:scale-105"
+                }`}
+              >
+                {selectedRoomId === activeRoomModal.id ? "Selected for Stay ✓" : "Choose This Room"}
+              </button>
+            </div>
           </div>
         </div>
       )}

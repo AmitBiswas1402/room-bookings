@@ -23,6 +23,7 @@ import {
   Castle,
   Palmtree,
   Mountain,
+  Plus,
 } from "lucide-react";
 import SearchExpandedModal from "./SearchExpandedModal";
 import CategoryCityStrip from "./CategoryCityStrip";
@@ -355,14 +356,25 @@ function NavbarContent() {
                       </Link>
 
                       {(dbUserRole === "OWNER" || dbUserRole === "ADMIN") && (
-                        <Link
-                          href="/dashboard"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-violet-300 hover:text-white hover:bg-violet-950/60 transition-colors"
-                        >
-                          <Building2 className="h-4 w-4 text-violet-400" />
-                          <span>Owner Dashboard</span>
-                        </Link>
+                        <>
+                          <Link
+                            href="/dashboard"
+                            onClick={() => setIsMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-violet-300 hover:text-white hover:bg-violet-950/60 transition-colors"
+                          >
+                            <Building2 className="h-4 w-4 text-violet-400" />
+                            <span>Owner Dashboard</span>
+                          </Link>
+
+                          <Link
+                            href="/dashboard?tab=create"
+                            onClick={() => setIsMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-300 hover:text-white hover:bg-emerald-950/60 transition-colors"
+                          >
+                            <Plus className="h-4 w-4 text-emerald-400" />
+                            <span>+ Add a Room / Hotel</span>
+                          </Link>
+                        </>
                       )}
 
                       {dbUserRole === "ADMIN" && (

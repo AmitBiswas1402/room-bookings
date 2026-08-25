@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Building2,
   Shield,
@@ -24,6 +24,7 @@ import {
   PartyPopper,
   Zap,
   Bed,
+  BedDouble,
   Bath,
   ArrowRight,
   Loader2,
@@ -34,7 +35,7 @@ import {
   Search,
   Filter,
 } from "lucide-react";
-import { Stay, formatINR, ALL_STAYS, getAllStays } from "@/data/stays";
+import { Stay, HotelRoom, formatINR, ALL_STAYS, getAllStays } from "@/data/stays";
 import ImageUpload from "@/components/ui/ImageUpload";
 
 interface UserProfile {
@@ -92,7 +93,20 @@ const HOLIDAY_PRESETS = [
 
 export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"overview" | "properties" | "create" | "holidays" | "bookings">("overview");
+  const searchParams = useSearchParams();
+  const tabQuery = searchParams.get("tab") as any;
+
+  const [activeTab, setActiveTab] = useState<"overview" | "properties" | "create" | "holidays" | "bookings">(
+    tabQuery && ["overview", "properties", "create", "holidays", "bookings"].includes(tabQuery)
+      ? tabQuery
+      : "overview"
+  );
+
+  useEffect(() => {
+    if (tabQuery && ["overview", "properties", "create", "holidays", "bookings"].includes(tabQuery)) {
+      setActiveTab(tabQuery);
+    }
+  }, [tabQuery]);
 
   const [propertiesList, setPropertiesList] = useState<Stay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -125,6 +139,26 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
     bathrooms: 3,
     amenities: ["Private Pool", "Sea View", "High-Speed Wi-Fi", "Air Conditioning", "Kitchen"] as string[],
     gallery: [] as string[],
+    rooms: [
+      {
+        id: "room-1",
+        name: "Deluxe King Suite",
+        type: "Deluxe" as const,
+        description: "Spacious master bedroom with plush King bed, luxury bath, and scenic balcony view.",
+        maxGuests: 2,
+        bedType: "1 King Bed",
+        bedsCount: 1,
+        sizeSqFt: 450,
+        pricePerNight: 8500,
+        originalPrice: 10500,
+        holidayPrice: 11999,
+        totalUnits: 2,
+        imageUrl: "",
+        gallery: [] as string[],
+        amenities: ["Air Conditioning", "High-Speed Wi-Fi", "Smart TV", "Bathtub", "Balcony", "Tea/Coffee Maker"],
+        mealPlan: "Free Breakfast Included" as const,
+      },
+    ] as HotelRoom[],
     checkInTime: "2:00 PM",
     checkOutTime: "11:00 AM",
     isInstantBook: true,
@@ -135,6 +169,40 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
       "Quiet hours after 10:30 PM",
     ],
   });
+
+  const handleAddRoom = () => {
+    const newRoom: HotelRoom = {
+      id: `room-${Date.now().toString().slice(-4)}`,
+      name: `Room Category ${formData.rooms.length + 1}`,
+      type: "Deluxe",
+      description: "Comfortable private room with king bed, ensuite bath, and luxury amenities.",
+      maxGuests: 2,
+      bedType: "1 King Bed",
+      bedsCount: 1,
+      sizeSqFt: 420,
+      pricePerNight: formData.pricePerNight || 5500,
+      originalPrice: Math.round((formData.pricePerNight || 5500) * 1.25),
+      holidayPrice: Math.round((formData.pricePerNight || 5500) * 1.4),
+      totalUnits: 2,
+      imageUrl: "",
+      gallery: [],
+      amenities: ["Air Conditioning", "High-Speed Wi-Fi", "Smart TV", "Bathtub", "Balcony"],
+      mealPlan: "Free Breakfast Included",
+    };
+    setFormData({ ...formData, rooms: [...formData.rooms, newRoom] });
+  };
+
+  const handleUpdateRoom = (index: number, field: keyof HotelRoom, value: any) => {
+    const updated = [...formData.rooms];
+    updated[index] = { ...updated[index], [field]: value };
+    setFormData({ ...formData, rooms: updated });
+  };
+
+  const handleRemoveRoom = (index: number) => {
+    if (formData.rooms.length <= 1) return;
+    const updated = formData.rooms.filter((_, i) => i !== index);
+    setFormData({ ...formData, rooms: updated });
+  };
 
   // Fetch properties
   const fetchProperties = async () => {
@@ -280,6 +348,26 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
       bathrooms: 3,
       amenities: ["Private Pool", "Sea View", "High-Speed Wi-Fi", "Air Conditioning", "Kitchen"],
       gallery: [],
+      rooms: [
+        {
+          id: "room-1",
+          name: "Deluxe King Suite",
+          type: "Deluxe" as const,
+          description: "Spacious master bedroom with plush King bed, luxury bath, and scenic balcony view.",
+          maxGuests: 2,
+          bedType: "1 King Bed",
+          bedsCount: 1,
+          sizeSqFt: 450,
+          pricePerNight: 8500,
+          originalPrice: 10500,
+          holidayPrice: 11999,
+          totalUnits: 2,
+          imageUrl: "",
+          gallery: [] as string[],
+          amenities: ["Air Conditioning", "High-Speed Wi-Fi", "Smart TV", "Bathtub", "Balcony", "Tea/Coffee Maker"],
+          mealPlan: "Free Breakfast Included" as const,
+        },
+      ],
       checkInTime: "2:00 PM",
       checkOutTime: "11:00 AM",
       isInstantBook: true,
@@ -679,6 +767,13 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                           {stay.bathrooms} baths
                         </span>
                       </div>
+
+                      {stay.rooms && stay.rooms.length > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 w-fit">
+                          <Building2 className="h-3.5 w-3.5 text-indigo-400" />
+                          <span>{stay.rooms.length} Room Categories</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Pricing & Actions */}
@@ -765,20 +860,21 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
               /* Main Wizard Form */
               <form onSubmit={handleSubmitProperty} className="space-y-8">
                 {/* Wizard Steps Indicator */}
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/60 border border-slate-800 overflow-x-auto gap-2">
                   {[
                     { step: 1, label: "1. Basics" },
                     { step: 2, label: "2. Location" },
-                    { step: 3, label: "3. Specs" },
-                    { step: 4, label: "4. Holiday Rates" },
-                    { step: 5, label: "5. Photos" },
-                    { step: 6, label: "6. Amenities" },
+                    { step: 3, label: "3. Rooms & Suites" },
+                    { step: 4, label: "4. Capacity" },
+                    { step: 5, label: "5. Holiday Rates" },
+                    { step: 6, label: "6. Photos" },
+                    { step: 7, label: "7. Amenities" },
                   ].map((s) => (
                     <button
                       key={s.step}
                       type="button"
                       onClick={() => setFormStep(s.step)}
-                      className={`text-xs font-bold transition-colors ${
+                      className={`text-xs font-bold whitespace-nowrap transition-colors ${
                         formStep === s.step
                           ? "text-indigo-400 font-extrabold underline underline-offset-4"
                           : formStep > s.step
@@ -977,18 +1073,233 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                         onClick={() => setFormStep(3)}
                         className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition-all"
                       >
-                        Next: Specs & Capacity &rarr;
+                        Next: Hotel Rooms & Suites &rarr;
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* STEP 3: SPECS & CAPACITY */}
+                {/* STEP 3: HOTEL ROOMS & SUITES */}
                 {formStep === 3 && (
                   <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-6 animate-in fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                          <Building2 className="h-5 w-5 text-indigo-400" />
+                          <span>Hotel Room Categories & Suites</span>
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Define multiple room types (e.g. Deluxe Room, Executive Suite, Presidential Penthouse).
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddRoom}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md flex items-center gap-1.5 self-start sm:self-auto transition-all"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>+ Add Room Category</span>
+                      </button>
+                    </div>
+
+                    {/* Room Cards List */}
+                    <div className="space-y-5">
+                      {formData.rooms.map((room, idx) => (
+                        <div
+                          key={room.id || idx}
+                          className="p-5 rounded-2xl bg-slate-950 border border-slate-800/90 space-y-4 relative"
+                        >
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="h-6 w-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">
+                                {idx + 1}
+                              </span>
+                              <h4 className="text-sm font-bold text-white">
+                                {room.name || `Room Category ${idx + 1}`}
+                              </h4>
+                            </div>
+
+                            {formData.rooms.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRoom(idx)}
+                                className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors text-xs flex items-center gap-1"
+                                title="Remove room type"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="hidden sm:inline text-[11px]">Remove</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="sm:col-span-2">
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Room Name / Title *
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="e.g. Deluxe Ocean View Suite"
+                                value={room.name}
+                                onChange={(e) => handleUpdateRoom(idx, "name", e.target.value)}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Room Category
+                              </label>
+                              <select
+                                value={room.type}
+                                onChange={(e) => handleUpdateRoom(idx, "type", e.target.value)}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                              >
+                                <option value="Deluxe">Deluxe Room</option>
+                                <option value="Executive">Executive Suite</option>
+                                <option value="Suite">Master Suite</option>
+                                <option value="Presidential">Presidential Penthouse</option>
+                                <option value="Standard">Standard Classic</option>
+                                <option value="Villa Room">Villa Room</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Price / Night (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min={500}
+                                value={room.pricePerNight}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  handleUpdateRoom(idx, "pricePerNight", val);
+                                  handleUpdateRoom(idx, "originalPrice", Math.round(val * 1.25));
+                                  handleUpdateRoom(idx, "holidayPrice", Math.round(val * 1.4));
+                                }}
+                                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Bed Type
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. 1 King Bed"
+                                value={room.bedType}
+                                onChange={(e) => handleUpdateRoom(idx, "bedType", e.target.value)}
+                                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Size (sq ft)
+                              </label>
+                              <input
+                                type="number"
+                                min={100}
+                                placeholder="450"
+                                value={room.sizeSqFt}
+                                onChange={(e) => handleUpdateRoom(idx, "sizeSqFt", Number(e.target.value))}
+                                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Max Guests
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={room.maxGuests}
+                                onChange={(e) => handleUpdateRoom(idx, "maxGuests", Number(e.target.value))}
+                                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Meal Plan
+                              </label>
+                              <select
+                                value={room.mealPlan || "Free Breakfast Included"}
+                                onChange={(e) => handleUpdateRoom(idx, "mealPlan", e.target.value)}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                              >
+                                <option value="Free Breakfast Included">🍳 Free Breakfast Included</option>
+                                <option value="Room Only">☕ Room Only (No Meals)</option>
+                                <option value="All Meals Included">🍽️ All Meals Included</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                Total Units Available
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={room.totalUnits || 1}
+                                onChange={(e) => handleUpdateRoom(idx, "totalUnits", Number(e.target.value))}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                              Room Description
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Spacious floor-to-ceiling suite with direct sea sunset views and soaking tub."
+                              value={room.description}
+                              onChange={(e) => handleUpdateRoom(idx, "description", e.target.value)}
+                              className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-between pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setFormStep(2)}
+                        className="px-5 py-2.5 rounded-2xl bg-slate-800 text-slate-300 text-xs font-bold"
+                      >
+                        &larr; Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormStep(4)}
+                        className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition-all"
+                      >
+                        Next: Capacity & Specs &rarr;
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 4: SPECS & CAPACITY */}
+                {formStep === 4 && (
+                  <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-6 animate-in fade-in">
                     <div>
-                      <h3 className="text-xl font-bold text-white">Space & Accommodation Specs</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Guests capacity and bedroom layout.</p>
+                      <h3 className="text-xl font-bold text-white">Space & Overall Accommodation Specs</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">Guests capacity and overall bedroom layout.</p>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1044,14 +1355,14 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                     <div className="flex justify-between pt-4">
                       <button
                         type="button"
-                        onClick={() => setFormStep(2)}
+                        onClick={() => setFormStep(3)}
                         className="px-5 py-2.5 rounded-2xl bg-slate-800 text-slate-300 text-xs font-bold"
                       >
                         &larr; Back
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFormStep(4)}
+                        onClick={() => setFormStep(5)}
                         className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition-all"
                       >
                         Next: Holiday Rates &rarr;
@@ -1060,8 +1371,8 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                   </div>
                 )}
 
-                {/* STEP 4: HOLIDAY BOOKING & PRICING */}
-                {formStep === 4 && (
+                {/* STEP 5: HOLIDAY BOOKING & PRICING */}
+                {formStep === 5 && (
                   <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-6 animate-in fade-in">
                     <div>
                       <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1156,14 +1467,14 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                     <div className="flex justify-between pt-4">
                       <button
                         type="button"
-                        onClick={() => setFormStep(3)}
+                        onClick={() => setFormStep(4)}
                         className="px-5 py-2.5 rounded-2xl bg-slate-800 text-slate-300 text-xs font-bold"
                       >
                         &larr; Back
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFormStep(5)}
+                        onClick={() => setFormStep(6)}
                         className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition-all"
                       >
                         Next: Photos & Cloudinary &rarr;
@@ -1172,8 +1483,8 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                   </div>
                 )}
 
-                {/* STEP 5: PHOTO GALLERY (CLOUDINARY) */}
-                {formStep === 5 && (
+                {/* STEP 6: PHOTO GALLERY (CLOUDINARY) */}
+                {formStep === 6 && (
                   <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-6 animate-in fade-in">
                     <div>
                       <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1197,14 +1508,14 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                     <div className="flex justify-between pt-4">
                       <button
                         type="button"
-                        onClick={() => setFormStep(4)}
+                        onClick={() => setFormStep(5)}
                         className="px-5 py-2.5 rounded-2xl bg-slate-800 text-slate-300 text-xs font-bold"
                       >
                         &larr; Back
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFormStep(6)}
+                        onClick={() => setFormStep(7)}
                         className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition-all"
                       >
                         Next: Amenities & Publish &rarr;
@@ -1213,8 +1524,8 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                   </div>
                 )}
 
-                {/* STEP 6: AMENITIES & PUBLISH */}
-                {formStep === 6 && (
+                {/* STEP 7: AMENITIES & PUBLISH */}
+                {formStep === 7 && (
                   <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-6 animate-in fade-in">
                     <div>
                       <h3 className="text-xl font-bold text-white">Select Amenities & Rules</h3>
@@ -1272,7 +1583,7 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                     <div className="flex justify-between pt-6 border-t border-slate-800">
                       <button
                         type="button"
-                        onClick={() => setFormStep(5)}
+                        onClick={() => setFormStep(6)}
                         className="px-5 py-2.5 rounded-2xl bg-slate-800 text-slate-300 text-xs font-bold"
                       >
                         &larr; Back

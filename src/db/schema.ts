@@ -502,11 +502,9 @@ export const reviews = pgTable("reviews", {
     })
     .notNull(),
 
-  bookingId: uuid("booking_id")
-    .references(() => bookings.id, {
-      onDelete: "cascade",
-    })
-    .notNull(),
+  bookingId: uuid("booking_id").references(() => bookings.id, {
+    onDelete: "set null",
+  }),
 
   rating: integer("rating").notNull(),
 

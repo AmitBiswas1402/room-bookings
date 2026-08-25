@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/authorization";
 import { db } from "@/lib";
-import { properties, propertyImages, rooms } from "@/db/schema";
+import { properties, propertyImages, rooms as roomsTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { Stay, addCustomStay, deleteCustomStay, getAllStays, customStaysStore } from "@/data/stays";
 
@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       gallery = [],
       houseRules = [],
       sleepingArrangements = [],
+      rooms = [],
       checkInTime = "2:00 PM",
       checkOutTime = "11:00 AM",
       isInstantBook = true,
@@ -163,6 +164,7 @@ export async function POST(req: NextRequest) {
               { roomName: "Master Suite", bedType: "1 King Bed", count: 1 },
               { roomName: "Guest Bedroom", bedType: "1 Queen Bed", count: 1 },
             ],
+      rooms: Array.isArray(rooms) && rooms.length > 0 ? rooms : undefined,
       reviews: [],
       cleaningFee: 1200,
       serviceFee: 850,
@@ -207,6 +209,20 @@ export async function POST(req: NextRequest) {
             propertyId: insertedProperty.id,
             imageUrl: gallery[i],
             isPrimary: i === 0,
+          });
+        }
+      }
+
+      if (insertedProperty && Array.isArray(rooms) && rooms.length > 0) {
+        for (const r of rooms) {
+          await db.insert(roomsTable).values({
+            propertyId: insertedProperty.id,
+            name: r.name || "Deluxe Suite",
+            description: r.description || "",
+            maxGuests: Number(r.maxGuests) || 2,
+            bedType: r.bedType || "1 King Bed",
+            pricePerNight: Number(r.pricePerNight) || Number(pricePerNight),
+            totalUnits: Number(r.totalUnits) || 1,
           });
         }
       }

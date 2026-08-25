@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { currentUser } from "@clerk/nextjs/server";
@@ -25,14 +25,22 @@ export default async function DashboardPage() {
   }
 
   return (
-    <OwnerDashboardClient
-      user={{
-        id: dbUser.id,
-        name: dbUser.name || clerkUser.fullName || "StaySpot Host",
-        email: dbUser.email,
-        imageUrl: dbUser.imageUrl || clerkUser.imageUrl || "",
-        role: dbUser.role,
-      }}
-    />
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-xs font-semibold">
+          Loading Owner Dashboard...
+        </div>
+      }
+    >
+      <OwnerDashboardClient
+        user={{
+          id: dbUser.id,
+          name: dbUser.name || clerkUser.fullName || "StaySpot Host",
+          email: dbUser.email,
+          imageUrl: dbUser.imageUrl || clerkUser.imageUrl || "",
+          role: dbUser.role,
+        }}
+      />
+    </Suspense>
   );
 }

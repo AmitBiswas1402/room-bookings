@@ -30,6 +30,26 @@ export interface HolidayRate {
   holidayPrice: number;
 }
 
+export interface HotelRoom {
+  id: string;
+  name: string;
+  type: "Deluxe" | "Executive" | "Suite" | "Presidential" | "Standard" | "Villa Room";
+  description: string;
+  maxGuests: number;
+  bedType: string;
+  bedsCount: number;
+  sizeSqFt: number;
+  pricePerNight: number;
+  originalPrice: number;
+  holidayPrice?: number;
+  totalUnits: number;
+  imageUrl: string;
+  gallery: string[];
+  amenities: string[];
+  mealPlan?: "Room Only" | "Free Breakfast Included" | "All Meals Included";
+  cancellationPolicy?: string;
+}
+
 export interface Stay {
   id: string;
   title: string;
@@ -62,6 +82,7 @@ export interface Stay {
   host: HostInfo;
   hostEmail?: string;
   sleepingArrangements: SleepingArrangement[];
+  rooms?: HotelRoom[];
   reviews: ReviewItem[];
   cleaningFee: number;
   serviceFee: number;
@@ -131,6 +152,52 @@ export const ALL_STAYS: Stay[] = [
     sleepingArrangements: [
       { roomName: "Master Bedroom", bedType: "1 King Bed", count: 1 },
       { roomName: "Bedroom 2", bedType: "1 Queen Bed", count: 1 },
+    ],
+    rooms: [
+      {
+        id: "m1-r1",
+        name: "Deluxe Arabian Sea Suite",
+        type: "Deluxe",
+        description: "Floor-to-ceiling glass suite with direct Arabian Sea sunset views, Italian marble bath, and automated blackout shades.",
+        maxGuests: 2,
+        bedType: "1 King Bed",
+        bedsCount: 1,
+        sizeSqFt: 550,
+        pricePerNight: 9999,
+        originalPrice: 12500,
+        holidayPrice: 13999,
+        totalUnits: 2,
+        imageUrl: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80",
+        gallery: [
+          "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
+        ],
+        amenities: ["Sea View", "Jacuzzi", "Smart TV", "High-Speed Wi-Fi", "Espresso Machine", "AC"],
+        mealPlan: "Free Breakfast Included",
+        cancellationPolicy: "Free cancellation up to 48 hours before check-in",
+      },
+      {
+        id: "m1-r2",
+        name: "Skyline Presidential Penthouse",
+        type: "Presidential",
+        description: "Top-floor sprawling suite featuring private wrap-around terrace, outdoor jacuzzi, integrated Bose acoustics, and panoramic city vistas.",
+        maxGuests: 4,
+        bedType: "2 King Beds",
+        bedsCount: 2,
+        sizeSqFt: 850,
+        pricePerNight: 15999,
+        originalPrice: 19500,
+        holidayPrice: 21999,
+        totalUnits: 1,
+        imageUrl: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80",
+        gallery: [
+          "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80",
+        ],
+        amenities: ["Terrace Jacuzzi", "Bose Audio", "Butler on Call", "Mini Bar", "Dedicated Workspace", "Fast Wi-Fi"],
+        mealPlan: "All Meals Included",
+        cancellationPolicy: "Free cancellation up to 72 hours before check-in",
+      },
     ],
     reviews: [
       {
@@ -398,6 +465,52 @@ export const ALL_STAYS: Stay[] = [
       { roomName: "Master Cliff Suite", bedType: "1 King Bed", count: 1 },
       { roomName: "Ocean Bedroom 2", bedType: "1 Queen Bed", count: 1 },
       { roomName: "Garden Bedroom 3", bedType: "1 Queen Bed", count: 1 },
+    ],
+    rooms: [
+      {
+        id: "g1-r1",
+        name: "Cliffside Sunset Villa Suite",
+        type: "Suite",
+        description: "Direct infinity pool access with private sunset sundeck, handcrafted teak wood four-poster king bed, and open-air rain shower.",
+        maxGuests: 2,
+        bedType: "1 King Bed",
+        bedsCount: 1,
+        sizeSqFt: 620,
+        pricePerNight: 8499,
+        originalPrice: 10999,
+        holidayPrice: 12499,
+        totalUnits: 3,
+        imageUrl: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80",
+        gallery: [
+          "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80",
+        ],
+        amenities: ["Private Pool Access", "Sea View", "King Bed", "Balcony", "Cocktail Bar", "Fast Wi-Fi"],
+        mealPlan: "Free Breakfast Included",
+        cancellationPolicy: "Free cancellation up to 48 hours before check-in",
+      },
+      {
+        id: "g1-r2",
+        name: "Oceanfront Deluxe Room",
+        type: "Deluxe",
+        description: "Upper-level panoramic bedroom with private balcony, ocean breeze, soaking tub, and luxury toiletries.",
+        maxGuests: 2,
+        bedType: "1 Queen Bed",
+        bedsCount: 1,
+        sizeSqFt: 450,
+        pricePerNight: 5999,
+        originalPrice: 7500,
+        holidayPrice: 8999,
+        totalUnits: 4,
+        imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
+        gallery: [
+          "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
+        ],
+        amenities: ["Ocean View", "Balcony", "Bathtub", "Smart TV", "AC", "Espresso Maker"],
+        mealPlan: "Room Only",
+        cancellationPolicy: "Free cancellation up to 24 hours before check-in",
+      },
     ],
     reviews: [
       {
