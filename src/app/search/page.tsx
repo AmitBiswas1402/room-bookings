@@ -19,13 +19,12 @@ import {
   Info,
 } from "lucide-react";
 import {
-  ALL_STAYS,
-  searchStays,
   calculateNights,
   formatDateRange,
   formatINR,
   Stay,
 } from "@/data/stays";
+import { fetchAllStaysFromDb } from "@/lib/staysDb";
 import SearchClientContainer from "./SearchClientContainer";
 
 interface SearchPageProps {
@@ -69,21 +68,70 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const nights = calculateNights(checkIn, checkOut);
   const formattedDates = formatDateRange(checkIn, checkOut);
 
-  // Filter initial stays on the server
-  const filteredStays = searchStays({
-    city,
-    destination,
-    category,
-    checkIn,
-    checkOut,
-    guests,
-    rooms,
-    minPrice,
-    maxPrice,
-    rating,
-    amenities: amenitiesList,
-    sort,
-  });
+  // Fetch all live stays from Neon DB
+  const allLiveStays = await fetchAllStaysFromDb();
+
+  // Filter initial stays
+  let filteredStays = [...allLiveStays];
+
+  if (city && city !== "all") {
+    const q = city.toLowerCase().trim();
+    filteredStays = filteredStays.filter(
+      (s) =>
+        s.city.toLowerCase() === q ||
+        s.cityId.toLowerCase() === q ||
+        s.location.toLowerCase().includes(q)
+    );
+  }
+
+  if (destination && destination !== "anywhere") {
+    const q = destination.toLowerCase().trim();
+    filteredStays = filteredStays.filter(
+      (s) =>
+        s.city.toLowerCase().includes(q) ||
+        s.location.toLowerCase().includes(q) ||
+        s.title.toLowerCase().includes(q) ||
+        s.state.toLowerCase().includes(q)
+    );
+  }
+
+  if (category && category !== "all") {
+    const q = category.toLowerCase().trim();
+    filteredStays = filteredStays.filter((s) => s.category.toLowerCase() === q);
+  }
+
+  if (guests > 1) {
+    filteredStays = filteredStays.filter((s) => s.maxGuests >= guests);
+  }
+
+  if (minPrice !== undefined) {
+    filteredStays = filteredStays.filter((s) => s.pricePerNight >= minPrice);
+  }
+
+  if (maxPrice !== undefined) {
+    filteredStays = filteredStays.filter((s) => s.pricePerNight <= maxPrice);
+  }
+
+  if (rating !== undefined) {
+    filteredStays = filteredStays.filter((s) => s.rating >= rating);
+  }
+
+  if (amenitiesList.length > 0) {
+    filteredStays = filteredStays.filter((s) =>
+      amenitiesList.every((req) => s.amenities.some((a) => a.toLowerCase().includes(req.toLowerCase())))
+    );
+  }
+
+  // Sort
+  if (sort === "price_asc") {
+    filteredStays.sort((a, b) => a.pricePerNight - b.pricePerNight);
+  } else if (sort === "price_desc") {
+    filteredStays.sort((a, b) => b.pricePerNight - a.pricePerNight);
+  } else if (sort === "rating") {
+    filteredStays.sort((a, b) => b.rating - a.rating);
+  } else if (sort === "reviews") {
+    filteredStays.sort((a, b) => b.reviewsCount - a.reviewsCount);
+  }
 
   return (
     <Suspense
@@ -98,7 +146,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     >
       <SearchClientContainer
         initialStays={filteredStays}
-        allStaysCount={ALL_STAYS.length}
+        allStaysCount={allLiveStays.length}
         queryCity={city}
         queryDestination={destination}
         queryCheckIn={checkIn}

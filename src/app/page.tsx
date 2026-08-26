@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   Building2,
 } from "lucide-react";
-import { ALL_STAYS, searchStays, formatINR, Stay } from "@/data/stays";
+import { formatINR, Stay } from "@/data/stays";
+import { fetchAllStaysFromDb } from "@/lib/staysDb";
 
 export default async function Home({
   searchParams,
@@ -52,13 +53,38 @@ export default async function Home({
   const checkIn = params.checkIn || "";
   const checkOut = params.checkOut || "";
 
-  // Filter listings using shared search helper
-  const filteredStays = searchStays({
-    city: activeCity,
-    category: activeCategory,
-    destination: activeDestination,
-    guests: requiredGuests,
-  });
+  // Fetch all live stays directly from Neon Database
+  const liveStays = await fetchAllStaysFromDb();
+
+  // Filter listings based on active search parameters
+  let filteredStays = [...liveStays];
+
+  if (activeCity && activeCity !== "all") {
+    filteredStays = filteredStays.filter(
+      (s) =>
+        s.city.toLowerCase() === activeCity ||
+        s.cityId.toLowerCase() === activeCity ||
+        s.location.toLowerCase().includes(activeCity)
+    );
+  }
+
+  if (activeCategory && activeCategory !== "all") {
+    filteredStays = filteredStays.filter((s) => s.category.toLowerCase() === activeCategory);
+  }
+
+  if (activeDestination && activeDestination !== "anywhere") {
+    filteredStays = filteredStays.filter(
+      (s) =>
+        s.city.toLowerCase().includes(activeDestination) ||
+        s.location.toLowerCase().includes(activeDestination) ||
+        s.title.toLowerCase().includes(activeDestination) ||
+        s.state.toLowerCase().includes(activeDestination)
+    );
+  }
+
+  if (requiredGuests > 0) {
+    filteredStays = filteredStays.filter((s) => s.maxGuests >= requiredGuests);
+  }
 
   const hasActiveFilters =
     (activeCity && activeCity !== "all") ||

@@ -3,7 +3,8 @@ import { requireRole } from "@/lib/authorization";
 import { db } from "@/lib";
 import { properties, propertyImages, rooms as roomsTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { Stay, addCustomStay, deleteCustomStay, getAllStays, customStaysStore } from "@/data/stays";
+import { Stay, addCustomStay, deleteCustomStay, customStaysStore } from "@/data/stays";
+import { fetchAllStaysFromDb } from "@/lib/staysDb";
 
 /**
  * GET /api/properties
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const filterMine = searchParams.get("mine") === "true";
 
-    const all = getAllStays();
+    const all = await fetchAllStaysFromDb();
 
     if (filterMine) {
       const userEmail = access.user.email.toLowerCase().trim();
@@ -226,6 +227,10 @@ export async function POST(req: NextRequest) {
           });
         }
       }
+
+      if (insertedProperty) {
+        newStay.id = insertedProperty.id;
+      }
     } catch (dbErr) {
       console.warn("Notice: PostgreSQL property insert skipped or pending migration:", dbErr);
     }
@@ -239,6 +244,169 @@ export async function POST(req: NextRequest) {
     console.error("Failed to create property:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to publish property" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT /api/properties
+ * Updates an existing property by ID
+ */
+export async function PUT(req: NextRequest) {
+  try {
+    const access = await requireRole("OWNER", "ADMIN");
+    if (access.status || !access.user) {
+      return NextResponse.json(
+        { error: access.status === 401 ? "Authentication required" : "Only Owners & Admins can edit properties" },
+        { status: access.status || 403 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Missing property ID" }, { status: 400 });
+    }
+
+    const body = await req.json();
+    const {
+      title,
+      type = "VILLA",
+      category = "villas",
+      city,
+      address,
+      state = "Maharashtra",
+      country = "India",
+      tag,
+      description,
+      pricePerNight,
+      originalPrice,
+      holidaySurgePrice,
+      isHolidayAvailable = true,
+      holidayPricing = [],
+      maxGuests = 4,
+      bedrooms = 2,
+      beds = 2,
+      bathrooms = 2,
+      amenities = [],
+      gallery = [],
+      houseRules = [],
+      sleepingArrangements = [],
+      rooms = [],
+      checkInTime = "2:00 PM",
+      checkOutTime = "11:00 AM",
+      isInstantBook = true,
+    } = body;
+
+    // 1. Update in Neon DB
+    try {
+      await db
+        .update(properties)
+        .set({
+          name: title,
+          type: type as any,
+          description: description,
+          address: address || city,
+          city: city,
+          state: state,
+          checkInTime: checkInTime,
+          checkOutTime: checkOutTime,
+          updatedAt: new Date(),
+        })
+        .where(eq(properties.id, id));
+
+      // Update images
+      if (Array.isArray(gallery) && gallery.length > 0) {
+        await db.delete(propertyImages).where(eq(propertyImages.propertyId, id));
+        for (let i = 0; i < gallery.length; i++) {
+          await db.insert(propertyImages).values({
+            propertyId: id,
+            imageUrl: gallery[i],
+            isPrimary: i === 0,
+          });
+        }
+      }
+
+      // Update rooms
+      if (Array.isArray(rooms) && rooms.length > 0) {
+        await db.delete(roomsTable).where(eq(roomsTable.propertyId, id));
+        for (const r of rooms) {
+          await db.insert(roomsTable).values({
+            propertyId: id,
+            name: r.name || "Deluxe Suite",
+            description: r.description || "",
+            maxGuests: Number(r.maxGuests) || 2,
+            bedType: r.bedType || "1 King Bed",
+            pricePerNight: Number(r.pricePerNight) || Number(pricePerNight),
+            totalUnits: Number(r.totalUnits) || 1,
+          });
+        }
+      }
+    } catch (dbErr) {
+      console.warn("Notice: DB update skipped:", dbErr);
+    }
+
+    const updatedStay: Stay = {
+      id: id,
+      title: title.trim(),
+      location: `${address ? address + ", " : ""}${city}`,
+      city: city.trim(),
+      cityId: city.toLowerCase().replace(/[^a-z0-9]/g, ""),
+      state: state.trim(),
+      category: category,
+      propertyType: type,
+      rating: 5.0,
+      reviewsCount: 0,
+      pricePerNight: Number(pricePerNight),
+      originalPrice: Number(originalPrice || Math.round(Number(pricePerNight) * 1.25)),
+      holidaySurgePrice: Number(holidaySurgePrice || Math.round(Number(pricePerNight) * 1.4)),
+      isHolidayAvailable: Boolean(isHolidayAvailable),
+      holidayPricing: Array.isArray(holidayPricing) ? holidayPricing : [],
+      tag: tag || `${type} · Holiday Booking Open`,
+      imageUrl: gallery[0] || "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80",
+      gallery: gallery.length > 0 ? gallery : ["https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80"],
+      amenities: Array.isArray(amenities) && amenities.length > 0 ? amenities : ["High-Speed Wi-Fi", "Air Conditioning", "Free Parking"],
+      maxGuests: Number(maxGuests),
+      bedrooms: Number(bedrooms),
+      beds: Number(beds),
+      bathrooms: Number(bathrooms),
+      isSuperhost: true,
+      isInstantBook: Boolean(isInstantBook),
+      description: description || `Welcome to ${title}`,
+      lat: 19.076,
+      lng: 72.8777,
+      host: {
+        name: access.user.name || "StaySpot Host",
+        avatar: access.user.imageUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+        isSuperhost: true,
+        yearsHosting: 1,
+        responseRate: 100,
+        responseTime: "within an hour",
+        bio: `Owner & Host of luxury stays in ${city}.`,
+      },
+      hostEmail: access.user.email,
+      sleepingArrangements: Array.isArray(sleepingArrangements) ? sleepingArrangements : [],
+      rooms: Array.isArray(rooms) && rooms.length > 0 ? rooms : undefined,
+      reviews: [],
+      cleaningFee: 1200,
+      serviceFee: 850,
+      houseRules: Array.isArray(houseRules) ? houseRules : [],
+      status: "APPROVED",
+      createdAt: new Date().toISOString(),
+    };
+
+    addCustomStay(updatedStay);
+
+    return NextResponse.json({
+      success: true,
+      message: "Property updated successfully!",
+      property: updatedStay,
+    });
+  } catch (error) {
+    console.error("Failed to update property:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update property" },
       { status: 500 }
     );
   }

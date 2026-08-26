@@ -7,7 +7,7 @@ import OwnerDashboardClient from "./OwnerDashboardClient";
 
 export const metadata: Metadata = {
   title: "Owner & Admin Dashboard — StaySpot",
-  description: "Manage holiday listings, villa & room bookings, Cloudinary photos, and seasonal rates.",
+  description: "Manage holiday listings, villa & room bookings, high-resolution photos, and seasonal rates.",
 };
 
 export default async function DashboardPage() {

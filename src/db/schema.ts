@@ -424,10 +424,13 @@ export const payments = pgTable("payments", {
     })
     .notNull(),
 
+  razorpayOrderId: text("razorpay_order_id"),
+
+  razorpayPaymentId: text("razorpay_payment_id"),
+
   stripePaymentIntentId: text(
     "stripe_payment_intent_id"
-  )
-    .unique(),
+  ),
 
   amount: integer("amount").notNull(),
 

@@ -37,9 +37,13 @@ import {
   ChevronDown,
   ArrowRight,
   Building2,
+  Pencil,
+  CreditCard,
 } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
 import { Stay, HotelRoom, formatINR, calculateNights, formatDateRange, ALL_STAYS } from "@/data/stays";
 import CalendarRangePicker from "@/components/navbar/CalendarRangePicker";
+import RazorpayBookingModal from "@/components/booking/RazorpayBookingModal";
 
 interface PropertyClientViewProps {
   stay: Stay;
@@ -55,6 +59,7 @@ export default function PropertyClientView({
   initialGuests = 2,
 }: PropertyClientViewProps) {
   const router = useRouter();
+  const { user } = useUser();
 
   const [checkIn, setCheckIn] = useState(initialCheckIn);
   const [checkOut, setCheckOut] = useState(initialCheckOut);
@@ -67,6 +72,7 @@ export default function PropertyClientView({
   const [isAllAmenitiesOpen, setIsAllAmenitiesOpen] = useState(false);
   const [isBookingConfirmed, setIsBookingConfirmed] = useState(false);
   const [isBookingLoading, setIsBookingLoading] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Available Hotel Rooms
@@ -136,11 +142,21 @@ export default function PropertyClientView({
   }, [isGalleryOpen, stay.gallery.length]);
 
   const handleBookingSubmit = () => {
-    setIsBookingLoading(true);
-    setTimeout(() => {
-      setIsBookingLoading(false);
-      setIsBookingConfirmed(true);
-    }, 800);
+    let effectiveCheckIn = checkIn;
+    let effectiveCheckOut = checkOut;
+
+    if (!effectiveCheckIn || !effectiveCheckOut) {
+      const today = new Date();
+      const d1 = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+      const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 3);
+      const formatD = (d: Date) => d.toISOString().split("T")[0];
+      effectiveCheckIn = formatD(d1);
+      effectiveCheckOut = formatD(d2);
+      setCheckIn(effectiveCheckIn);
+      setCheckOut(effectiveCheckOut);
+    }
+
+    setIsPaymentModalOpen(true);
   };
 
   const otherStays = ALL_STAYS.filter((s) => s.id !== stay.id && s.cityId === stay.cityId).slice(0, 3);
@@ -195,8 +211,16 @@ export default function PropertyClientView({
             </div>
           </div>
 
-          {/* Action Buttons: Share & Save */}
+          {/* Action Buttons: Edit, Share & Save */}
           <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href={`/dashboard?tab=create&editId=${stay.id}`}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 transition-all hover:scale-105"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              <span>Edit Listing</span>
+            </Link>
+
             <button
               type="button"
               onClick={handleShare}
@@ -472,17 +496,23 @@ export default function PropertyClientView({
 
                             <button
                               type="button"
-                              onClick={() => setSelectedRoomId(room.id)}
-                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                              onClick={() => {
+                                if (isSelected) {
+                                  handleBookingSubmit();
+                                } else {
+                                  setSelectedRoomId(room.id);
+                                }
+                              }}
+                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
                                 isSelected
-                                  ? "bg-emerald-600 text-white shadow-emerald-600/30 flex items-center gap-1.5"
+                                  ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 flex items-center gap-1.5 hover:scale-105"
                                   : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 hover:scale-105"
                               }`}
                             >
                               {isSelected ? (
                                 <>
-                                  <Check className="h-3.5 w-3.5 stroke-[3]" />
-                                  <span>Selected Room</span>
+                                  <CreditCard className="h-3.5 w-3.5" />
+                                  <span>Reserve & Pay &rarr;</span>
                                 </>
                               ) : (
                                 <span>Select Room</span>
@@ -813,19 +843,17 @@ export default function PropertyClientView({
                 type="button"
                 onClick={handleBookingSubmit}
                 disabled={isBookingLoading}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 via-indigo-600 to-violet-600 hover:from-rose-400 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.01] flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 via-indigo-600 to-violet-600 hover:from-rose-400 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.01] active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
               >
-                {isBookingLoading ? (
-                  <span>Securing your reservation...</span>
-                ) : (
-                  <>
-                    <span>Reserve {selectedRoom.name.split(" ")[0]}</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
+                <CreditCard className="h-4 w-4" />
+                <span>Reserve {selectedRoom.name.split(" ")[0]} & Pay</span>
+                <ArrowRight className="h-4 w-4" />
               </button>
 
-              <p className="text-center text-xs text-slate-500">You won't be charged yet</p>
+              <p className="text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 font-medium">
+                <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Pay securely via Razorpay</span>
+              </p>
 
               {/* Price Breakdown Calculation */}
               <div className="space-y-2.5 pt-4 border-t border-slate-800 text-xs text-slate-300">
@@ -1109,6 +1137,22 @@ export default function PropertyClientView({
           </div>
         </div>
       )}
+
+      {/* Razorpay Interactive Booking & Payment Modal */}
+      <RazorpayBookingModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        stay={stay}
+        selectedRoom={selectedRoom}
+        checkIn={checkIn || "2026-08-28"}
+        checkOut={checkOut || "2026-08-30"}
+        guestsCount={totalGuests}
+        nightsCount={nights}
+        totalBeforeTaxes={total}
+        grandTotal={total + Math.round(total * 0.12)}
+        userEmail={user?.emailAddresses?.[0]?.emailAddress || ""}
+        userName={user?.fullName || user?.firstName || ""}
+      />
     </div>
   );
 }

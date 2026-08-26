@@ -3,7 +3,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Compass, RotateCcw } from "lucide-react";
-import { getStayById, ALL_STAYS } from "@/data/stays";
+import { fetchStayByIdFromDb } from "@/lib/staysDb";
 import PropertyClientView from "./PropertyClientView";
 
 interface PropertyPageProps {
@@ -23,7 +23,7 @@ export async function generateMetadata({
   params: Promise<{ propertyId: string }>;
 }): Promise<Metadata> {
   const { propertyId } = await params;
-  const stay = getStayById(propertyId);
+  const stay = await fetchStayByIdFromDb(propertyId);
 
   if (!stay) {
     return {
@@ -49,7 +49,7 @@ export default async function PropertyDetailsPage({
   const { propertyId } = await params;
   const search = await searchParams;
 
-  const stay = getStayById(propertyId);
+  const stay = await fetchStayByIdFromDb(propertyId);
 
   if (!stay) {
     return (
