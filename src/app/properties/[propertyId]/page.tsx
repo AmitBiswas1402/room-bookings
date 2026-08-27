@@ -3,7 +3,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Compass, RotateCcw } from "lucide-react";
-import { fetchStayByIdFromDb } from "@/lib/staysDb";
+import { fetchStayByIdFromDb, fetchAllStaysFromDb } from "@/lib/staysDb";
 import PropertyClientView from "./PropertyClientView";
 
 interface PropertyPageProps {
@@ -74,6 +74,11 @@ export default async function PropertyDetailsPage({
     );
   }
 
+  const allStays = await fetchAllStaysFromDb();
+  const otherStays = allStays
+    .filter((s) => s.id !== stay.id && s.cityId === stay.cityId)
+    .slice(0, 3);
+
   const initialGuests = search.guests ? Number(search.guests) : 2;
 
   return (
@@ -82,6 +87,7 @@ export default async function PropertyDetailsPage({
       initialCheckIn={search.checkIn || ""}
       initialCheckOut={search.checkOut || ""}
       initialGuests={isNaN(initialGuests) ? 2 : initialGuests}
+      otherStays={otherStays}
     />
   );
 }

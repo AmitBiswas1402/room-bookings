@@ -36,7 +36,7 @@ import {
   Search,
   Filter,
 } from "lucide-react";
-import { Stay, HotelRoom, formatINR, ALL_STAYS, getAllStays } from "@/data/stays";
+import { Stay, HotelRoom, formatINR } from "@/data/stays";
 import ImageUpload from "@/components/ui/ImageUpload";
 
 interface UserProfile {

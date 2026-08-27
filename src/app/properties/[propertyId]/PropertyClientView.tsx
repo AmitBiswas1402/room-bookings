@@ -41,7 +41,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
-import { Stay, HotelRoom, formatINR, calculateNights, formatDateRange, ALL_STAYS } from "@/data/stays";
+import { Stay, HotelRoom, formatINR, calculateNights, formatDateRange } from "@/data/stays";
 import CalendarRangePicker from "@/components/navbar/CalendarRangePicker";
 import RazorpayBookingModal from "@/components/booking/RazorpayBookingModal";
 
@@ -50,6 +50,7 @@ interface PropertyClientViewProps {
   initialCheckIn?: string;
   initialCheckOut?: string;
   initialGuests?: number;
+  otherStays?: Stay[];
 }
 
 export default function PropertyClientView({
@@ -57,6 +58,7 @@ export default function PropertyClientView({
   initialCheckIn = "",
   initialCheckOut = "",
   initialGuests = 2,
+  otherStays = [],
 }: PropertyClientViewProps) {
   const router = useRouter();
   const { user } = useUser();
@@ -158,8 +160,6 @@ export default function PropertyClientView({
 
     setIsPaymentModalOpen(true);
   };
-
-  const otherStays = ALL_STAYS.filter((s) => s.id !== stay.id && s.cityId === stay.cityId).slice(0, 3);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">

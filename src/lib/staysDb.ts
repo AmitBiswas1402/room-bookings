@@ -32,7 +32,7 @@ export async function fetchAllStaysFromDb(): Promise<Stay[]> {
     const dbProps = await db.select().from(properties);
 
     if (!dbProps || dbProps.length === 0) {
-      return ALL_STAYS;
+      return [];
     }
 
     const [
@@ -227,48 +227,10 @@ export async function fetchAllStaysFromDb(): Promise<Stay[]> {
       };
     });
 
-    // Merge with static catalog (DB stays take precedence)
-    const combinedMap = new Map<string, Stay>();
-
-    // Add static catalog first
-    ALL_STAYS.forEach((s) => {
-      combinedMap.set(slugify(s.title), s);
-      combinedMap.set(s.id, s);
-    });
-
-    // Add DB stays (overwriting or appending)
-    dbStays.forEach((s) => {
-      combinedMap.set(s.id, s);
-      combinedMap.set(slugify(s.title), s);
-      // Also index by composite slug e.g. "mumbai-new-life-home"
-      combinedMap.set(`${s.cityId}-${slugify(s.title)}`, s);
-    });
-
-    // Return unique stays by property ID
-    const finalUniqueStays: Stay[] = [];
-    const seenIds = new Set<string>();
-
-    // First include all DB Stays
-    dbStays.forEach((s) => {
-      if (!seenIds.has(s.id)) {
-        seenIds.add(s.id);
-        finalUniqueStays.push(s);
-      }
-    });
-
-    // Then static stays not in DB
-    ALL_STAYS.forEach((s) => {
-      const matchDb = dbStays.some((d) => slugify(d.title) === slugify(s.title));
-      if (!matchDb && !seenIds.has(s.id)) {
-        seenIds.add(s.id);
-        finalUniqueStays.push(s);
-      }
-    });
-
-    return finalUniqueStays;
+    return dbStays;
   } catch (err) {
-    console.error("Notice: fetchAllStaysFromDb fallback to static stays:", err);
-    return ALL_STAYS;
+    console.error("Notice: fetchAllStaysFromDb error:", err);
+    return [];
   }
 }
 
