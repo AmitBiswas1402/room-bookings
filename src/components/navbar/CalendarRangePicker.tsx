@@ -16,6 +16,7 @@ interface CalendarRangePickerProps {
   checkOut: string; // YYYY-MM-DD
   onChange: (checkIn: string, checkOut: string) => void;
   onApply?: () => void;
+  blockedDates?: string[];
 }
 
 const MONTH_NAMES = [
@@ -40,6 +41,7 @@ export default function CalendarRangePicker({
   checkOut,
   onChange,
   onApply,
+  blockedDates = [],
 }: CalendarRangePickerProps) {
   // Start view on current date or checkIn month
   const initialDate = checkIn ? new Date(checkIn) : new Date();
@@ -146,6 +148,7 @@ export default function CalendarRangePicker({
     for (let day = 1; day <= totalDaysInMonth; day++) {
       const dateStr = formatDateStr(year, month, day);
       const isPast = dateStr < todayStr;
+      const isBlocked = blockedDates.includes(dateStr);
       const isCheckIn = dateStr === checkIn;
       const isCheckOut = dateStr === checkOut;
 
@@ -157,13 +160,16 @@ export default function CalendarRangePicker({
         <button
           key={dateStr}
           type="button"
-          disabled={isPast}
+          disabled={isPast || isBlocked}
+          title={isBlocked ? "Sold out on this date" : isPast ? "Past date" : dateStr}
           onClick={() => handleDayClick(dateStr)}
-          onMouseEnter={() => checkIn && !checkOut && setHoverDate(dateStr)}
+          onMouseEnter={() => checkIn && !checkOut && !isBlocked && setHoverDate(dateStr)}
           onMouseLeave={() => setHoverDate(null)}
-          className={`h-10 w-10 text-xs font-semibold rounded-full flex items-center justify-center transition-all relative ${
+          className={`h-10 w-10 text-xs font-semibold rounded-full flex flex-col items-center justify-center transition-all relative ${
             isPast
               ? "text-slate-600 cursor-not-allowed opacity-40 line-through"
+              : isBlocked
+              ? "text-rose-400/60 bg-rose-950/20 cursor-not-allowed opacity-60 border border-rose-900/40"
               : isCheckIn || isCheckOut
               ? "bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-bold shadow-lg shadow-indigo-500/30 scale-105 z-10"
               : isBetween
@@ -172,6 +178,9 @@ export default function CalendarRangePicker({
           }`}
         >
           <span>{day}</span>
+          {isBlocked && (
+            <span className="w-1 h-1 rounded-full bg-rose-500 absolute bottom-1" />
+          )}
         </button>
       );
     }

@@ -29,6 +29,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Check-in and Check-out dates are required" }, { status: 400 });
     }
 
+    // Live Availability Check (Prevent Overbooking)
+    if (propertyId && propertyId.length === 36 && propertyId.includes("-")) {
+      try {
+        const { getLivePropertyAvailability } = await import("@/lib/availability");
+        const availability = await getLivePropertyAvailability({
+          propertyId,
+          checkIn,
+          checkOut,
+        });
+
+        if (roomId) {
+          const roomStatus = availability.rooms.find((r) => r.roomId === roomId);
+          if (roomStatus && roomStatus.isSoldOut) {
+            return NextResponse.json(
+              { error: `The ${roomStatus.roomName} is fully booked for your selected dates. Please choose another room or different dates.` },
+              { status: 400 }
+            );
+          }
+        } else if (availability.propertySoldOut) {
+          return NextResponse.json(
+            { error: "This property is fully booked for the selected dates." },
+            { status: 400 }
+          );
+        }
+      } catch (availErr) {
+        console.warn("Notice: Live availability check in order route:", availErr);
+      }
+    }
+
     // Generate readable booking reference
     const bookingNumber = `STAY-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
 

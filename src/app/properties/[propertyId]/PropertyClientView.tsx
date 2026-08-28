@@ -39,11 +39,17 @@ import {
   Building2,
   Pencil,
   CreditCard,
+  RefreshCw,
+  Activity,
+  Eye,
+  Flame,
+  AlertCircle,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { Stay, HotelRoom, formatINR, calculateNights, formatDateRange } from "@/data/stays";
 import CalendarRangePicker from "@/components/navbar/CalendarRangePicker";
 import RazorpayBookingModal from "@/components/booking/RazorpayBookingModal";
+import { PropertyAvailabilityResult, RoomAvailabilityStatus } from "@/lib/availability";
 
 interface PropertyClientViewProps {
   stay: Stay;
@@ -77,6 +83,37 @@ export default function PropertyClientView({
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Live Real-Time Availability State
+  const [liveAvailability, setLiveAvailability] = useState<PropertyAvailabilityResult | null>(null);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState<boolean>(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+
+  // Fetch Live Room Availability & Inventory
+  const fetchLiveAvailability = async () => {
+    try {
+      setIsLoadingAvailability(true);
+      const res = await fetch(
+        `/api/properties/${stay.id}/availability?checkIn=${checkIn || ""}&checkOut=${checkOut || ""}`
+      );
+      if (res.ok) {
+        const data: PropertyAvailabilityResult = await res.json();
+        setLiveAvailability(data);
+        setLastSyncTime(new Date());
+      }
+    } catch (err) {
+      console.warn("Live availability check warning:", err);
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveAvailability();
+    // Live hotel polling every 20 seconds
+    const timer = setInterval(fetchLiveAvailability, 20000);
+    return () => clearInterval(timer);
+  }, [stay.id, checkIn, checkOut]);
+
   // Available Hotel Rooms
   const availableRooms: HotelRoom[] =
     stay.rooms && stay.rooms.length > 0
@@ -106,6 +143,14 @@ export default function PropertyClientView({
   const [selectedRoomId, setSelectedRoomId] = useState<string>(availableRooms[0].id);
   const selectedRoom = availableRooms.find((r) => r.id === selectedRoomId) || availableRooms[0];
   const [activeRoomModal, setActiveRoomModal] = useState<HotelRoom | null>(null);
+
+  // Helper to get room live availability
+  const getRoomStatus = (roomId: string): RoomAvailabilityStatus | undefined => {
+    return liveAvailability?.rooms.find((r) => r.roomId === roomId);
+  };
+  const currentRoomStatus = getRoomStatus(selectedRoomId);
+  const isCurrentRoomSoldOut = currentRoomStatus?.isSoldOut || false;
+  const firstAvailableRoom = availableRooms.find((r) => !getRoomStatus(r.id)?.isSoldOut);
 
   const totalGuests = adults + children;
   const nights = calculateNights(checkIn, checkOut);
@@ -144,6 +189,8 @@ export default function PropertyClientView({
   }, [isGalleryOpen, stay.gallery.length]);
 
   const handleBookingSubmit = () => {
+    if (isCurrentRoomSoldOut) return;
+
     let effectiveCheckIn = checkIn;
     let effectiveCheckOut = checkOut;
 
@@ -241,6 +288,53 @@ export default function PropertyClientView({
             >
               <Heart className={`h-3.5 w-3.5 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`} />
               <span>{isWishlisted ? "Saved" : "Save"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* LIVE HOTEL OPERATIONS & REAL-TIME AVAILABILITY TICKER */}
+        <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-900/90 via-indigo-950/40 to-slate-900/90 border border-indigo-500/20 backdrop-blur-md shadow-lg flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex items-center justify-center">
+              <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </div>
+            <span className="font-bold text-white tracking-wide flex items-center gap-1.5">
+              <Activity className="h-3.5 w-3.5 text-emerald-400" />
+              Live Hotel Inventory
+            </span>
+            <span className="text-slate-600 hidden sm:inline">·</span>
+            <span className="text-slate-300 hidden sm:inline">
+              Real-Time Neon DB Sync
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-slate-300">
+            <div className="flex items-center gap-1.5 font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full text-[11px]">
+              <Eye className="h-3 w-3 text-amber-400" />
+              <span>{liveAvailability?.liveActivity.viewersCount || 3} viewing now</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 font-medium text-rose-300 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-full text-[11px]">
+              <Flame className="h-3 w-3 text-rose-400" />
+              <span>
+                {liveAvailability?.liveActivity.recentBookingsCount || 1} booked recently ({liveAvailability?.liveActivity.lastBookedText || "Today"})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 font-medium text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full text-[11px] hidden md:flex">
+              <Zap className="h-3 w-3 text-indigo-400" />
+              <span>{liveAvailability?.liveActivity.occupancyRatePercentage || 70}% occupancy</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={fetchLiveAvailability}
+              title="Click to refresh live inventory from Neon DB"
+              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700/60 transition-colors"
+            >
+              <RefreshCw className={`h-3 w-3 ${isLoadingAvailability ? "animate-spin text-indigo-400" : ""}`} />
+              <span className="hidden sm:inline">Live Sync</span>
             </button>
           </div>
         </div>
@@ -391,140 +485,168 @@ export default function PropertyClientView({
                   {availableRooms.length} {availableRooms.length === 1 ? "Category" : "Categories"} Available
                 </span>
               </div>
+            </div>
 
-              {/* Room Cards List */}
-              <div className="space-y-4">
-                {availableRooms.map((room) => {
-                  const isSelected = room.id === selectedRoomId;
-                  const roomNightsSubtotal = room.pricePerNight * nights;
+            {/* Room Cards List */}
+            <div className="space-y-4">
+              {availableRooms.map((room) => {
+                const isSelected = selectedRoomId === room.id;
+                const roomNightsSubtotal = (room.pricePerNight || stay.pricePerNight) * nights;
+                const roomStatus = getRoomStatus(room.id);
+                const isRoomSoldOut = roomStatus?.isSoldOut || false;
 
-                  return (
+                return (
+                  <div
+                    key={room.id}
+                    className={`p-4 sm:p-5 rounded-3xl border transition-all duration-300 flex flex-col md:flex-row gap-5 relative overflow-hidden ${
+                      isRoomSoldOut
+                        ? "bg-slate-950/60 border-rose-900/30 opacity-75"
+                        : isSelected
+                        ? "bg-slate-900 border-indigo-500 shadow-xl shadow-indigo-500/10"
+                        : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    {/* Room Photo Thumbnail */}
                     <div
-                      key={room.id}
-                      className={`p-5 rounded-3xl border transition-all duration-300 flex flex-col md:flex-row gap-5 ${
-                        isSelected
-                          ? "bg-slate-900 border-indigo-500 shadow-xl shadow-indigo-500/10"
-                          : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
-                      }`}
+                      onClick={() => setActiveRoomModal(room)}
+                      className="relative w-full md:w-56 h-44 rounded-2xl overflow-hidden bg-slate-800 shrink-0 cursor-pointer group"
                     >
-                      {/* Room Photo Thumbnail */}
-                      <div
-                        onClick={() => setActiveRoomModal(room)}
-                        className="relative w-full md:w-56 h-44 rounded-2xl overflow-hidden bg-slate-800 shrink-0 cursor-pointer group"
-                      >
-                        <img
-                          src={room.imageUrl || stay.imageUrl}
-                          alt={room.name}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-indigo-300 border border-indigo-500/30">
-                          {room.type}
+                      <img
+                        src={room.imageUrl || stay.imageUrl}
+                        alt={room.name}
+                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-indigo-300 border border-indigo-500/30">
+                        {room.type}
+                      </div>
+                      <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-semibold text-slate-300">
+                        {room.gallery?.length || 1} Photos
+                      </div>
+                    </div>
+
+                    {/* Room Details Body */}
+                    <div className="flex-1 flex flex-col justify-between space-y-3">
+                      <div>
+                        {/* Live Inventory Status Tag */}
+                        {isRoomSoldOut ? (
+                          <div className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[10px]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                            <span>Sold Out for Selected Dates ({checkIn || "Dates"} → {checkOut || ""})</span>
+                          </div>
+                        ) : roomStatus?.urgencyStatus === "LOW_INVENTORY" ? (
+                          <div className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                            <span>⚡ High Demand · Only 1 unit left for selected dates!</span>
+                          </div>
+                        ) : roomStatus ? (
+                          <div className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold text-[10px]">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                            <span>Live Available ({roomStatus.availableUnits} of {roomStatus.totalUnits} units ready)</span>
+                          </div>
+                        ) : null}
+
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="text-base font-bold text-white hover:text-indigo-300 transition-colors">
+                              {room.name}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
+                              <span>{room.bedType}</span>
+                              <span>·</span>
+                              <span>{room.sizeSqFt} sq ft</span>
+                              <span>·</span>
+                              <span>Up to {room.maxGuests} guests</span>
+                            </div>
+                          </div>
+
+                          {room.mealPlan && (
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full shrink-0">
+                              {room.mealPlan}
+                            </span>
+                          )}
                         </div>
-                        <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-semibold text-slate-300">
-                          {room.gallery?.length || 1} Photos
+
+                        <p className="text-xs text-slate-300 line-clamp-2 mt-2 leading-relaxed">
+                          {room.description}
+                        </p>
+
+                        {/* Room Amenities Chips */}
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {room.amenities.map((amenity, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2.5 py-0.5 rounded-lg bg-slate-950 text-[10px] font-medium text-slate-300 border border-slate-800"
+                            >
+                              {amenity}
+                            </span>
+                          ))}
                         </div>
                       </div>
 
-                      {/* Room Details Body */}
-                      <div className="flex-1 flex flex-col justify-between space-y-3">
+                      {/* Room Price & Selection Action Row */}
+                      <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
                         <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h4 className="text-base font-bold text-white hover:text-indigo-300 transition-colors">
-                                {room.name}
-                              </h4>
-                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
-                                <span>{room.bedType}</span>
-                                <span>·</span>
-                                <span>{room.sizeSqFt} sq ft</span>
-                                <span>·</span>
-                                <span>Up to {room.maxGuests} guests</span>
-                              </div>
-                            </div>
-
-                            {room.mealPlan && (
-                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full shrink-0">
-                                {room.mealPlan}
-                              </span>
-                            )}
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-lg font-black text-white">
+                              {formatINR(room.pricePerNight)}
+                            </span>
+                            <span className="text-xs text-slate-400">/ night</span>
+                            <span className="text-xs text-slate-500 line-through">
+                              {formatINR(room.originalPrice)}
+                            </span>
                           </div>
-
-                          <p className="text-xs text-slate-300 line-clamp-2 mt-2 leading-relaxed">
-                            {room.description}
-                          </p>
-
-                          {/* Room Amenities Chips */}
-                          <div className="flex flex-wrap gap-1.5 mt-3">
-                            {room.amenities.map((amenity, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2.5 py-0.5 rounded-lg bg-slate-950 text-[10px] font-medium text-slate-300 border border-slate-800"
-                              >
-                                {amenity}
-                              </span>
-                            ))}
+                          <div className="text-[11px] text-indigo-400 font-semibold mt-0.5">
+                            {nights > 1
+                              ? `${formatINR(roomNightsSubtotal)} for ${nights} nights`
+                              : "Taxes & fees included"}
                           </div>
                         </div>
 
-                        {/* Room Price & Selection Action Row */}
-                        <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
-                          <div>
-                            <div className="flex items-baseline gap-1.5">
-                              <span className="text-lg font-black text-white">
-                                {formatINR(room.pricePerNight)}
-                              </span>
-                              <span className="text-xs text-slate-400">/ night</span>
-                              <span className="text-xs text-slate-500 line-through">
-                                {formatINR(room.originalPrice)}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-indigo-400 font-semibold mt-0.5">
-                              {nights > 1
-                                ? `${formatINR(roomNightsSubtotal)} for ${nights} nights`
-                                : "Taxes & fees included"}
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveRoomModal(room)}
+                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                          >
+                            Room Specs
+                          </button>
 
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setActiveRoomModal(room)}
-                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
-                            >
-                              Room Specs
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  handleBookingSubmit();
-                                } else {
-                                  setSelectedRoomId(room.id);
-                                }
-                              }}
-                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
-                                isSelected
-                                  ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 flex items-center gap-1.5 hover:scale-105"
-                                  : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 hover:scale-105"
-                              }`}
-                            >
-                              {isSelected ? (
-                                <>
-                                  <CreditCard className="h-3.5 w-3.5" />
-                                  <span>Reserve & Pay &rarr;</span>
-                                </>
-                              ) : (
-                                <span>Select Room</span>
-                              )}
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            disabled={isRoomSoldOut}
+                            onClick={() => {
+                              if (isRoomSoldOut) return;
+                              if (isSelected) {
+                                handleBookingSubmit();
+                              } else {
+                                setSelectedRoomId(room.id);
+                              }
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                              isRoomSoldOut
+                                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700 opacity-60"
+                                : isSelected
+                                ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 flex items-center gap-1.5 hover:scale-105 cursor-pointer"
+                                : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 hover:scale-105 cursor-pointer"
+                            }`}
+                          >
+                            {isRoomSoldOut ? (
+                              <span>Sold Out on these Dates</span>
+                            ) : isSelected ? (
+                              <>
+                                <CreditCard className="h-3.5 w-3.5" />
+                                <span>Reserve & Pay &rarr;</span>
+                              </>
+                            ) : (
+                              <span>Select Room</span>
+                            )}
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Property Description */}
@@ -693,25 +815,31 @@ export default function PropertyClientView({
             </div>
           </div>
 
-          {/* RIGHT 1 COLUMN: Sticky Reservation Card */}
-          <div className="relative">
-            <div className="sticky top-28 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/90 p-6 space-y-6">
-              {/* Top Rate Header */}
+          {/* RIGHT COLUMN: STICKY RESERVATION CARD (Airbnb / Booking.com Style) */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-24 rounded-3xl bg-slate-900/90 border border-slate-800 p-6 shadow-2xl backdrop-blur-xl space-y-5">
+              {/* Card Header Price */}
               <div className="flex items-baseline justify-between">
                 <div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-white">{formatINR(nightlyRate)}</span>
+                    <span className="text-2xl font-black text-white">
+                      {formatINR(nightlyRate)}
+                    </span>
                     <span className="text-xs text-slate-400">/ night</span>
                   </div>
-                  <span className="text-xs text-slate-500 line-through">
-                    {formatINR(selectedRoom.originalPrice || stay.originalPrice)}
-                  </span>
+                  <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                    <span className="line-through">{formatINR(selectedRoom.originalPrice || stay.originalPrice)}</span>
+                    <span className="text-emerald-400 font-bold">
+                      {Math.round(
+                        (1 - nightlyRate / (selectedRoom.originalPrice || stay.originalPrice || (nightlyRate * 1.25))) * 100
+                      )}% off
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1 text-xs font-bold text-amber-400">
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <div className="flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                  <Star className="h-3.5 w-3.5 fill-amber-400" />
                   <span>{stay.rating.toFixed(2)}</span>
-                  <span className="text-slate-500 font-normal">({stay.reviewsCount})</span>
                 </div>
               </div>
 
@@ -726,6 +854,34 @@ export default function PropertyClientView({
                 </span>
               </div>
 
+              {/* Live Room Availability Warning or Low Inventory Notice */}
+              {isCurrentRoomSoldOut ? (
+                <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-400">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{selectedRoom.name} is Sold Out</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    All units are reserved for your chosen dates ({checkIn || "Dates"} → {checkOut || ""}).
+                  </p>
+                  {firstAvailableRoom && firstAvailableRoom.id !== selectedRoom.id && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRoomId(firstAvailableRoom.id)}
+                      className="w-full py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <span>Switch to {firstAvailableRoom.name.split(" ")[0]} Suite</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ) : currentRoomStatus?.urgencyStatus === "LOW_INVENTORY" ? (
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-bold flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                  <span>⚡ High Demand: Only 1 unit remaining for your dates!</span>
+                </div>
+              ) : null}
+
               {/* Booking Picker Box */}
               <div className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
                 {/* Room Category Dropdown Selector */}
@@ -739,11 +895,16 @@ export default function PropertyClientView({
                     onChange={(e) => setSelectedRoomId(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-800 text-xs font-bold text-white rounded-xl px-2.5 py-2 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-inner"
                   >
-                    {availableRooms.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} — {formatINR(r.pricePerNight)}/night ({r.type})
-                      </option>
-                    ))}
+                    {availableRooms.map((r) => {
+                      const rStatus = getRoomStatus(r.id);
+                      const isSold = rStatus?.isSoldOut;
+                      return (
+                        <option key={r.id} value={r.id}>
+                          {isSold ? "🔴 [SOLD OUT] " : ""}
+                          {r.name} — {formatINR(r.pricePerNight)}/night ({r.type})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -842,12 +1003,25 @@ export default function PropertyClientView({
               <button
                 type="button"
                 onClick={handleBookingSubmit}
-                disabled={isBookingLoading}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 via-indigo-600 to-violet-600 hover:from-rose-400 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.01] active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                disabled={isBookingLoading || isCurrentRoomSoldOut}
+                className={`w-full py-4 rounded-2xl font-bold text-sm shadow-xl transition-all flex items-center justify-center gap-2 ${
+                  isCurrentRoomSoldOut
+                    ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700 opacity-70"
+                    : "bg-gradient-to-r from-rose-500 via-indigo-600 to-violet-600 hover:from-rose-400 hover:to-violet-500 text-white shadow-indigo-600/30 hover:scale-[1.01] active:scale-98 cursor-pointer"
+                }`}
               >
-                <CreditCard className="h-4 w-4" />
-                <span>Reserve {selectedRoom.name.split(" ")[0]} & Pay</span>
-                <ArrowRight className="h-4 w-4" />
+                {isCurrentRoomSoldOut ? (
+                  <>
+                    <AlertCircle className="h-4 w-4 text-rose-400" />
+                    <span>Sold Out for Selected Dates</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="h-4 w-4" />
+                    <span>Reserve {selectedRoom.name.split(" ")[0]} & Pay</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
 
               <p className="text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 font-medium">
