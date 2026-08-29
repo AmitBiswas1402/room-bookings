@@ -337,20 +337,33 @@ export default function RazorpayBookingModal({
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <Link
-                href="/dashboard?tab=bookings"
-                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all hover:scale-105"
+                href={`/booking/confirmation?bookingNumber=${encodeURIComponent(
+                  bookingSuccessData.bookingNumber
+                )}&bookingId=${encodeURIComponent(
+                  bookingSuccessData.bookingId || ""
+                )}&paymentId=${encodeURIComponent(
+                  bookingSuccessData.paymentId
+                )}&propertyTitle=${encodeURIComponent(stay.title)}&city=${encodeURIComponent(
+                  stay.city
+                )}&address=${encodeURIComponent(stay.location)}&roomName=${encodeURIComponent(
+                  selectedRoom.name
+                )}&checkIn=${checkIn}&checkOut=${checkOut}&guests=${guestsCount}&totalAmount=${finalPayable}&guestName=${encodeURIComponent(
+                  guestName
+                )}&guestEmail=${encodeURIComponent(guestEmail)}&imageUrl=${encodeURIComponent(
+                  selectedRoom.imageUrl || stay.imageUrl
+                )}`}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white text-xs font-bold shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all hover:scale-105"
               >
-                <span>View in My Bookings</span>
-                <ExternalLink className="h-4 w-4" />
+                <span>View Tax Invoice & Receipt &rarr;</span>
               </Link>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
+              <Link
+                href="/dashboard?tab=bookings"
+                className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
               >
-                Done
-              </button>
+                <span>My Bookings</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
             </div>
           </div>
         ) : (

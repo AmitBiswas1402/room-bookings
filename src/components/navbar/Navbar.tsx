@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import SearchExpandedModal from "./SearchExpandedModal";
 import CategoryCityStrip from "./CategoryCityStrip";
+import NotificationBell from "./NotificationBell";
 
 interface SearchState {
   city: string;
@@ -313,6 +314,9 @@ function NavbarContent() {
                       <span>{dbUserRole}</span>
                     </Link>
                   )}
+
+                  {/* Notifications Bell */}
+                  <NotificationBell />
 
                   {/* User Dropdown Pill */}
                   <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-full border border-slate-800 bg-slate-900/90 shadow-sm">

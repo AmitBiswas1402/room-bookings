@@ -4,6 +4,7 @@ import { db } from "@/lib";
 import { bookings, bookingRooms, payments, users, properties, rooms as roomsTable } from "@/db/schema";
 import { currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
+import { notifyBookingAndPaymentConfirmation } from "@/lib/notifications";
 
 export async function POST(req: NextRequest) {
   try {
@@ -153,6 +154,57 @@ export async function POST(req: NextRequest) {
             razorpayPaymentId: razorpay_payment_id || null,
             amount: Number(totalAmount),
             status: "PAID",
+          });
+
+          // Fetch host email and property details for notification
+          let hostId: string | undefined;
+          let hostEmail: string | undefined;
+          let hostName = "Property Host";
+          let propertyName = "Luxury Stay";
+          let propertyCity = "India";
+
+          if (propDbId) {
+            const [propWithHost] = await db
+              .select({
+                hostId: properties.hostId,
+                hostEmail: users.email,
+                hostName: users.name,
+                name: properties.name,
+                city: properties.city,
+              })
+              .from(properties)
+              .leftJoin(users, eq(properties.hostId, users.id))
+              .where(eq(properties.id, propDbId));
+
+            if (propWithHost) {
+              hostId = propWithHost.hostId;
+              hostEmail = propWithHost.hostEmail || undefined;
+              hostName = propWithHost.hostName || "Property Host";
+              propertyName = propWithHost.name || "Luxury Stay";
+              propertyCity = propWithHost.city || "India";
+            }
+          }
+
+          // Trigger Multi-Role In-App & Email Notifications (Guest & Owner)
+          notifyBookingAndPaymentConfirmation({
+            guestId: guestDbId || undefined,
+            guestName: guestName || "Valued Guest",
+            guestEmail: guestEmail || "guest@stayspot.com",
+            hostId,
+            hostName,
+            hostEmail,
+            bookingNumber: bNumber,
+            propertyName,
+            propertyCity,
+            roomName,
+            checkIn: checkIn || "2026-08-28",
+            checkOut: checkOut || "2026-08-30",
+            nights: Number(nights) || 1,
+            guestsCount: Number(guests) || 2,
+            totalAmount: Number(totalAmount),
+            razorpayPaymentId: razorpay_payment_id,
+          }).catch((err) => {
+            console.error("Notice: notification dispatch note:", err);
           });
         }
       } catch (insertErr) {

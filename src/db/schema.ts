@@ -51,6 +51,15 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "REFUNDED",
 ]);
 
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "BOOKING_CONFIRMATION",
+  "PAYMENT_CONFIRMATION",
+  "NEW_BOOKING_OWNER",
+  "CANCELLATION_GUEST",
+  "CANCELLATION_OWNER",
+  "BOOKING_REMINDER",
+]);
+
 /* =========================
    USERS
 ========================= */
@@ -512,6 +521,36 @@ export const reviews = pgTable("reviews", {
   rating: integer("rating").notNull(),
 
   comment: text("comment"),
+
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
+
+/* =========================
+   NOTIFICATIONS
+========================= */
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  userId: uuid("user_id")
+    .references(() => users.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+
+  type: text("type").notNull(),
+
+  title: text("title").notNull(),
+
+  message: text("message").notNull(),
+
+  link: text("link"),
+
+  isRead: boolean("is_read").default(false).notNull(),
 
   createdAt: timestamp("created_at", {
     withTimezone: true,

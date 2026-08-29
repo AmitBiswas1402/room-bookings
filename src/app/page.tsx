@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { formatINR, Stay } from "@/data/stays";
 import { fetchAllStaysFromDb } from "@/lib/staysDb";
+import WishlistHeartButton from "@/components/common/WishlistHeartButton";
 
 export default async function Home({
   searchParams,
@@ -262,6 +263,11 @@ export default async function Home({
                     {stay.tag}
                   </div>
                 </Link>
+
+                {/* Wishlist Heart Button */}
+                <div className="absolute top-3 right-3 z-10">
+                  <WishlistHeartButton propertyId={stay.id} />
+                </div>
 
                 {/* Card Content */}
                 <div className="p-4 flex-1 flex flex-col justify-between space-y-3">

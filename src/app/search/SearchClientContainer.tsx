@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Stay, formatINR, calculateNights } from "@/data/stays";
 import SearchExpandedModal from "@/components/navbar/SearchExpandedModal";
+import WishlistHeartButton from "@/components/common/WishlistHeartButton";
 
 interface SearchClientContainerProps {
   initialStays: Stay[];
@@ -539,6 +540,11 @@ export default function SearchClientContainer({
                           </div>
                         </div>
                       </Link>
+
+                      {/* Wishlist Button */}
+                      <div className="absolute top-3 right-3 z-10">
+                        <WishlistHeartButton propertyId={stay.id} />
+                      </div>
 
                       {/* Card Content Body */}
                       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">

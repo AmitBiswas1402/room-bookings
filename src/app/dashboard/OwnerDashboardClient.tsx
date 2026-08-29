@@ -35,9 +35,13 @@ import {
   SlidersHorizontal,
   Search,
   Filter,
+  Send,
+  Bell,
 } from "lucide-react";
 import { Stay, HotelRoom, formatINR } from "@/data/stays";
 import ImageUpload from "@/components/ui/ImageUpload";
+import CancellationModal from "@/components/booking/CancellationModal";
+import NotificationBell from "@/components/navbar/NotificationBell";
 
 interface UserProfile {
   id: string;
@@ -97,8 +101,8 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
   const searchParams = useSearchParams();
   const tabQuery = searchParams.get("tab") as any;
 
-  const [activeTab, setActiveTab] = useState<"overview" | "properties" | "create" | "holidays" | "bookings">(
-    tabQuery && ["overview", "properties", "create", "holidays", "bookings"].includes(tabQuery)
+  const [activeTab, setActiveTab] = useState<"overview" | "properties" | "create" | "holidays" | "bookings" | "wishlist">(
+    tabQuery && ["overview", "properties", "create", "holidays", "bookings", "wishlist"].includes(tabQuery)
       ? tabQuery
       : "overview"
   );
@@ -106,16 +110,48 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tabQuery && ["overview", "properties", "create", "holidays", "bookings"].includes(tabQuery)) {
-      setActiveTab(tabQuery);
+    if (tabQuery && ["overview", "properties", "create", "holidays", "bookings", "wishlist"].includes(tabQuery)) {
+      setActiveTab(tabQuery as any);
     }
   }, [tabQuery]);
 
   const [propertiesList, setPropertiesList] = useState<Stay[]>([]);
   const [bookingsList, setBookingsList] = useState<any[]>([]);
+  const [wishlistList, setWishlistList] = useState<any[]>([]);
+  const [isLoadingWishlist, setIsLoadingWishlist] = useState<boolean>(false);
+  const [selectedBookingForCancel, setSelectedBookingForCancel] = useState<any | null>(null);
+  const [cancellationNotice, setCancellationNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
+
+  const fetchWishlist = async () => {
+    try {
+      setIsLoadingWishlist(true);
+      const res = await fetch("/api/wishlist");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.favorites)) {
+        setWishlistList(data.favorites);
+      }
+    } catch (err) {
+      console.error("Failed to load wishlist:", err);
+    } finally {
+      setIsLoadingWishlist(false);
+    }
+  };
+
+  const handleRemoveFromWishlist = async (propertyId: string) => {
+    try {
+      setWishlistList((prev) => prev.filter((item) => item.id !== propertyId));
+      await fetch("/api/wishlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId }),
+      });
+    } catch (err) {
+      console.error("Failed to remove from wishlist:", err);
+    }
+  };
 
   // Form State for "Create / Edit Property"
   const [formStep, setFormStep] = useState(1);
@@ -239,7 +275,31 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
 
     fetchProperties();
     fetchBookings();
+    fetchWishlist();
   }, []);
+
+  const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
+
+  const handleSendReminder = async (bookingNumber: string) => {
+    try {
+      setSendingReminderId(bookingNumber);
+      const res = await fetch("/api/notifications/reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: bookingNumber }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCancellationNotice(`🔔 Booking reminder notification & email sent for ${bookingNumber}!`);
+      } else {
+        alert(data.error || "Failed to send reminder");
+      }
+    } catch (err) {
+      console.error("Reminder failed:", err);
+    } finally {
+      setSendingReminderId(null);
+    }
+  };
 
   const handleAmenityToggle = (amenity: string) => {
     if (formData.amenities.includes(amenity)) {
@@ -491,10 +551,21 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
     return matchesSearch && matchesCategory;
   });
 
+  const totalRevenue = bookingsList.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+  const totalNightsBooked = bookingsList.reduce((sum, b) => {
+    if (b.checkIn && b.checkOut) {
+      const d1 = new Date(b.checkIn);
+      const d2 = new Date(b.checkOut);
+      const diff = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)));
+      return sum + diff;
+    }
+    return sum + 2;
+  }, 0);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
       {/* 1. TOP HERO BANNER & HOST HEADER */}
-      <div className="border-b border-slate-800/80 bg-gradient-to-b from-slate-900/90 to-slate-950/95 backdrop-blur-xl">
+      <div className="border-b border-slate-800/80 bg-linear-to-b from-slate-900/90 to-slate-950/95 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -533,8 +604,10 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
               </div>
             </div>
 
-            {/* Quick Action Button */}
+            {/* Quick Action Buttons */}
             <div className="flex items-center gap-3">
+              <NotificationBell />
+
               <button
                 type="button"
                 onClick={() => {
@@ -574,7 +647,7 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
               }`}
             >
               <Building2 className="h-4 w-4" />
-              <span>My Properties ({propertiesList.length})</span>
+              <span>Properties ({propertiesList.length})</span>
             </button>
 
             <button
@@ -585,7 +658,7 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
               }}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
                 activeTab === "create"
-                  ? "bg-gradient-to-r from-rose-500 to-indigo-600 text-white shadow-lg shadow-rose-500/30"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
                   : "text-slate-400 hover:text-white hover:bg-slate-900"
               }`}
             >
@@ -616,7 +689,23 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
               }`}
             >
               <Calendar className="h-4 w-4" />
-              <span>Bookings (14)</span>
+              <span>Bookings ({bookingsList.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                fetchWishlist();
+                setActiveTab("wishlist");
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                activeTab === "wishlist"
+                  ? "bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-lg shadow-rose-600/30"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <Heart className="h-4 w-4 text-rose-400" />
+              <span>My Wishlist ❤️ ({wishlistList.length})</span>
             </button>
           </div>
         </div>
@@ -641,46 +730,48 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                 <div className="text-3xl font-black text-white">{propertiesList.length}</div>
                 <div className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3" />
-                  <span>All Active & Bookable</span>
+                  <span>All Active in Neon DB</span>
                 </div>
               </div>
 
               <div className="p-6 rounded-3xl bg-slate-900/70 border border-slate-800/80 relative overflow-hidden shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-400">Holiday Peak Bookings</span>
+                  <span className="text-xs font-bold text-slate-400">Total Guest Bookings</span>
                   <div className="h-9 w-9 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
                     <Flame className="h-4 w-4" />
                   </div>
                 </div>
-                <div className="text-3xl font-black text-white">42 Nights</div>
+                <div className="text-3xl font-black text-white">{bookingsList.length} Bookings</div>
                 <div className="text-[11px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
-                  <span>+18% Diwali & New Year Surge</span>
+                  <span>{totalNightsBooked} Total Nights Reserved</span>
                 </div>
               </div>
 
               <div className="p-6 rounded-3xl bg-slate-900/70 border border-slate-800/80 relative overflow-hidden shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-400">Estimated Revenue</span>
+                  <span className="text-xs font-bold text-slate-400">Realized Revenue</span>
                   <div className="h-9 w-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                     <DollarSign className="h-4 w-4" />
                   </div>
                 </div>
-                <div className="text-3xl font-black text-white">₹3,48,500</div>
+                <div className="text-3xl font-black text-white">{formatINR(totalRevenue)}</div>
                 <div className="text-[11px] text-emerald-400 font-semibold mt-1">
-                  Direct Payout to Bank
+                  Verified Razorpay Receipts
                 </div>
               </div>
 
               <div className="p-6 rounded-3xl bg-slate-900/70 border border-slate-800/80 relative overflow-hidden shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-400">Average Occupancy</span>
+                  <span className="text-xs font-bold text-slate-400">Holiday Active Listings</span>
                   <div className="h-9 w-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
                     <Sun className="h-4 w-4" />
                   </div>
                 </div>
-                <div className="text-3xl font-black text-white">92%</div>
+                <div className="text-3xl font-black text-white">
+                  {propertiesList.filter((p) => p.isHolidayAvailable !== false).length}
+                </div>
                 <div className="text-[11px] text-amber-300 font-semibold mt-1">
-                  High Holiday Demand
+                  Ready for Festive Bookings
                 </div>
               </div>
             </div>
@@ -1820,104 +1911,280 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                   </p>
                 </div>
                 <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                  {bookingsList.length > 0 ? bookingsList.length : 3} Confirmed
+                  {bookingsList.length} Confirmed
                 </span>
               </div>
 
-              <div className="divide-y divide-slate-800/80">
-                {(bookingsList.length > 0
-                  ? bookingsList.map((b) => ({
-                      guest: b.guestName || "Verified Traveler",
-                      stay: b.propertyName || "Luxury Stay",
-                      city: b.propertyCity || "India",
-                      dates: `${b.checkIn} – ${b.checkOut}`,
-                      guests: b.guests || 2,
-                      amount: formatINR(b.totalAmount || 12000),
-                      status: b.status || "CONFIRMED",
-                      bookingNumber: b.bookingNumber,
-                      paymentId: b.razorpayPaymentId,
-                    }))
-                  : [
-                      {
-                        guest: "Aarav Sharma",
-                        stay: "Skyline Glass Penthouse Suite",
-                        city: "Mumbai",
-                        dates: "Oct 28 – Nov 2, 2026 (Diwali)",
-                        guests: 4,
-                        amount: "₹49,995",
-                        status: "Confirmed",
-                        bookingNumber: "STAY-829104-492",
-                        paymentId: "pay_Pz92841kLa",
-                      },
-                      {
-                        guest: "Neha Rastogi",
-                        stay: "Azure Horizon Cliffside Villa",
-                        city: "Goa",
-                        dates: "Dec 24 – Dec 29, 2026 (Christmas)",
-                        guests: 6,
-                        amount: "₹59,995",
-                        status: "Confirmed",
-                        bookingNumber: "STAY-718293-102",
-                        paymentId: "pay_Qm381029Xp",
-                      },
-                      {
-                        guest: "Karan Patel",
-                        stay: "Portuguese Colonial Heritage Estate",
-                        city: "Goa",
-                        dates: "Dec 30, 2026 – Jan 3, 2027 (New Year)",
-                        guests: 8,
-                        amount: "₹71,994",
-                        status: "Confirmed",
-                        bookingNumber: "STAY-938172-884",
-                        paymentId: "pay_Lk492817Zy",
-                      },
-                    ]
-                ).map((item, idx) => (
-                  <div key={idx} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">{item.guest}</span>
-                        {item.bookingNumber && (
-                          <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
-                            {item.bookingNumber}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-300 font-medium mt-0.5">
-                        {item.stay} · {item.city}
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-2">
-                        <Calendar className="h-3 w-3 text-indigo-400" />
-                        <span>{item.dates}</span>
-                        <span>·</span>
-                        <span>{item.guests} guests</span>
-                        {item.paymentId && (
-                          <>
-                            <span>·</span>
-                            <span className="font-mono text-[10px] text-emerald-400">
-                              Razorpay: {item.paymentId}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="text-sm font-black text-emerald-400">{item.amount}</div>
-                        <div className="text-[10px] text-slate-400">Paid via Razorpay</div>
-                      </div>
-                      <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold uppercase tracking-wider">
-                        {item.status}
-                      </span>
-                    </div>
+              {cancellationNotice && (
+                <div className="mb-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                    <span>{cancellationNotice}</span>
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setCancellationNotice(null)}
+                    className="text-slate-400 hover:text-white text-xs ml-4"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {bookingsList.length === 0 ? (
+                <div className="py-16 text-center space-y-3">
+                  <div className="h-14 w-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
+                    <Calendar className="h-7 w-7" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">No Guest Bookings Yet</h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                    Once travelers book your luxury villas or hotel suites with Razorpay, their live reservations, payment receipts, and guest details will appear here automatically.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-800/80">
+                  {bookingsList.map((item, idx) => {
+                    const isCancelled = item.status === "CANCELLED";
+                    return (
+                      <div key={item.id || idx} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-white">{item.guestName || "Verified Traveler"}</span>
+                            {item.bookingNumber && (
+                              <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                                {item.bookingNumber}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-300 font-medium mt-0.5">
+                            {item.propertyName || "Luxury Stay"} · {item.propertyCity || "India"}
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-2">
+                            <Calendar className="h-3 w-3 text-indigo-400" />
+                            <span>{item.checkIn} – {item.checkOut}</span>
+                            <span>·</span>
+                            <span>{item.guests || 2} guests</span>
+                            {item.razorpayPaymentId && (
+                              <>
+                                <span>·</span>
+                                <span className="font-mono text-[10px] text-emerald-400">
+                                  Razorpay: {item.razorpayPaymentId}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <div className={`text-sm font-black ${isCancelled ? "text-slate-500 line-through" : "text-emerald-400"}`}>
+                              {formatINR(item.totalAmount || 0)}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {isCancelled ? "Refund Initiated" : "Paid via Razorpay"}
+                            </div>
+                          </div>
+
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                              isCancelled
+                                ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            }`}
+                          >
+                            {item.status || "CONFIRMED"}
+                          </span>
+
+                          {item.bookingNumber && (
+                            <Link
+                              href={`/booking/confirmation?bookingNumber=${encodeURIComponent(item.bookingNumber)}`}
+                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors"
+                              title="View official digital receipt & invoice"
+                            >
+                              <span>Receipt</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          )}
+
+                          {!isCancelled && item.bookingNumber && (
+                            <button
+                              type="button"
+                              onClick={() => handleSendReminder(item.bookingNumber)}
+                              disabled={sendingReminderId === item.bookingNumber}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                              title="Send upcoming stay reminder notification & email"
+                            >
+                              {sendingReminderId === item.bookingNumber ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Send className="h-3 w-3" />
+                              )}
+                              <span>Remind</span>
+                            </button>
+                          )}
+
+                          {!isCancelled && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedBookingForCancel({
+                                  id: item.id,
+                                  bookingNumber: item.bookingNumber,
+                                  propertyName: item.propertyName || "Luxury Property",
+                                  checkIn: item.checkIn || "2026-08-28",
+                                  checkOut: item.checkOut || "2026-08-30",
+                                  totalAmount: item.totalAmount || 0,
+                                })
+                              }
+                              className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-semibold transition-colors"
+                              title="Cancel reservation and process refund"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 6: MY WISHLIST ❤️ */}
+        {/* ========================================================================= */}
+        {activeTab === "wishlist" && (
+          <div className="space-y-6">
+            <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/60 border border-slate-800">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Heart className="h-5 w-5 text-rose-500 fill-rose-500" />
+                    <span>My Saved Wishlist</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Your collection of dream luxury stays and verified boutique suites.
+                  </p>
+                </div>
+
+                <span className="text-xs font-bold text-rose-400 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20">
+                  {wishlistList.length} Saved Stays
+                </span>
               </div>
+
+              {isLoadingWishlist ? (
+                <div className="py-16 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                  <span>Loading your saved wishlist...</span>
+                </div>
+              ) : wishlistList.length === 0 ? (
+                <div className="py-16 text-center space-y-3">
+                  <div className="h-14 w-14 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+                    <Heart className="h-7 w-7" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">Your Wishlist is Empty</h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                    Click the heart icon on any villa or hotel suite across StaySpot to save it here for easy booking later.
+                  </p>
+                  <div className="pt-2">
+                    <Link
+                      href="/"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs shadow-lg transition-all hover:scale-105"
+                    >
+                      <span>Explore Stays</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {wishlistList.map((item) => (
+                    <div
+                      key={item.id}
+                      className="group rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between"
+                    >
+                      <div className="relative h-48 overflow-hidden bg-slate-900">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromWishlist(item.id)}
+                          className="absolute top-3 right-3 p-2 rounded-full bg-slate-950/80 backdrop-blur-md text-rose-500 border border-rose-500/30 hover:bg-rose-500/20 hover:scale-110 transition-all"
+                          title="Remove from wishlist"
+                        >
+                          <Heart className="h-4 w-4 fill-rose-500" />
+                        </button>
+                        <div className="absolute bottom-3 left-3 px-2.5 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-indigo-300 border border-indigo-500/30">
+                          {item.type || "Luxury Stay"}
+                        </div>
+                      </div>
+
+                      <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                        <div>
+                          <div className="text-xs text-slate-400 flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-rose-400" />
+                            <span>{item.city}, {item.state || "India"}</span>
+                          </div>
+                          <h4 className="text-sm font-bold text-white mt-1 group-hover:text-indigo-300 transition-colors">
+                            {item.name}
+                          </h4>
+                          <div className="text-[11px] text-slate-400 mt-1">
+                            Hosted by {item.hostName || "Superhost"}
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                          <div>
+                            <span className="text-sm font-black text-white font-mono">
+                              {formatINR(item.pricePerNight || 8500)}
+                            </span>
+                            <span className="text-[10px] text-slate-400"> / night</span>
+                          </div>
+
+                          <Link
+                            href={`/properties/${item.id}`}
+                            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 transition-all hover:scale-105"
+                          >
+                            <span>View Stay</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
       </main>
+
+      {/* Cancellation Modal */}
+      {selectedBookingForCancel && (
+        <CancellationModal
+          isOpen={Boolean(selectedBookingForCancel)}
+          onClose={() => setSelectedBookingForCancel(null)}
+          booking={selectedBookingForCancel}
+          onSuccess={({ refundAmount, policyApplied }) => {
+            setCancellationNotice(
+              `Reservation ${selectedBookingForCancel.bookingNumber} successfully cancelled. Refund of ${formatINR(refundAmount)} initiated (${policyApplied}).`
+            );
+            setBookingsList((prev) =>
+              prev.map((b) =>
+                b.id === selectedBookingForCancel.id || b.bookingNumber === selectedBookingForCancel.bookingNumber
+                  ? { ...b, status: "CANCELLED" }
+                  : b
+              )
+            );
+            setSelectedBookingForCancel(null);
+          }}
+        />
+      )}
     </div>
   );
 }
