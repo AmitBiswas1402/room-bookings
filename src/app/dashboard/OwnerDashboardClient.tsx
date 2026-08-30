@@ -37,11 +37,15 @@ import {
   Filter,
   Send,
   Bell,
+  CreditCard,
+  Percent,
+  Mail,
 } from "lucide-react";
 import { Stay, HotelRoom, formatINR } from "@/data/stays";
 import ImageUpload from "@/components/ui/ImageUpload";
 import CancellationModal from "@/components/booking/CancellationModal";
 import NotificationBell from "@/components/navbar/NotificationBell";
+import AdminManagementSection from "@/components/admin/AdminManagementSection";
 
 interface UserProfile {
   id: string;
@@ -101,16 +105,18 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
   const searchParams = useSearchParams();
   const tabQuery = searchParams.get("tab") as any;
 
-  const [activeTab, setActiveTab] = useState<"overview" | "properties" | "create" | "holidays" | "bookings" | "wishlist">(
-    tabQuery && ["overview", "properties", "create", "holidays", "bookings", "wishlist"].includes(tabQuery)
+  const [activeTab, setActiveTab] = useState<"overview" | "properties" | "create" | "holidays" | "bookings" | "wishlist" | "admin">(
+    tabQuery && ["overview", "properties", "create", "holidays", "bookings", "wishlist", "admin"].includes(tabQuery)
       ? tabQuery
+      : user.role === "ADMIN" && tabQuery === "admin"
+      ? "admin"
       : "overview"
   );
 
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tabQuery && ["overview", "properties", "create", "holidays", "bookings", "wishlist"].includes(tabQuery)) {
+    if (tabQuery && ["overview", "properties", "create", "holidays", "bookings", "wishlist", "admin"].includes(tabQuery)) {
       setActiveTab(tabQuery as any);
     }
   }, [tabQuery]);
@@ -118,6 +124,8 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
   const [propertiesList, setPropertiesList] = useState<Stay[]>([]);
   const [bookingsList, setBookingsList] = useState<any[]>([]);
   const [wishlistList, setWishlistList] = useState<any[]>([]);
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<"ALL" | "CONFIRMED" | "COMPLETED" | "CANCELLED">("ALL");
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [isLoadingWishlist, setIsLoadingWishlist] = useState<boolean>(false);
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState<any | null>(null);
   const [cancellationNotice, setCancellationNotice] = useState<string | null>(null);
@@ -707,6 +715,21 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
               <Heart className="h-4 w-4 text-rose-400" />
               <span>My Wishlist ❤️ ({wishlistList.length})</span>
             </button>
+
+            {user.role === "ADMIN" && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("admin")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                  activeTab === "admin"
+                    ? "bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-lg shadow-rose-600/30"
+                    : "text-rose-300 hover:text-white hover:bg-rose-950/40 border border-rose-500/20"
+                }`}
+              >
+                <Shield className="h-4 w-4 text-rose-400" />
+                <span>🛡️ Admin Controls</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1895,161 +1918,383 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 5: BOOKINGS & RESERVATIONS */}
+        {/* TAB 5: OWNER BOOKING & REVENUE MANAGEMENT */}
         {/* ========================================================================= */}
-        {activeTab === "bookings" && (
-          <div className="space-y-6 animate-in fade-in">
-            <div className="p-6 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-indigo-400" />
-                    <span>Guest Bookings & Razorpay Payments</span>
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Live holiday reservations and verified Razorpay payment receipts.
-                  </p>
+        {activeTab === "bookings" && (() => {
+          const nonCancelled = bookingsList.filter((b) => b.status !== "CANCELLED");
+          const grossRevenue = nonCancelled.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+          const totalRefunded = bookingsList
+            .filter((b) => b.status === "CANCELLED")
+            .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+          const netRevenue = grossRevenue;
+          const avgBookingValue = nonCancelled.length > 0 ? Math.round(grossRevenue / nonCancelled.length) : 0;
+
+          const confirmedBookings = bookingsList.filter((b) => b.status === "CONFIRMED");
+          const completedBookings = bookingsList.filter((b) => b.status === "COMPLETED" || (b.status === "CONFIRMED" && new Date(b.checkOut) < new Date()));
+          const cancelledBookings = bookingsList.filter((b) => b.status === "CANCELLED");
+
+          const filteredList = bookingsList.filter((b) => {
+            if (bookingStatusFilter === "CONFIRMED") return b.status === "CONFIRMED";
+            if (bookingStatusFilter === "COMPLETED") return b.status === "COMPLETED" || (b.status === "CONFIRMED" && new Date(b.checkOut) < new Date());
+            if (bookingStatusFilter === "CANCELLED") return b.status === "CANCELLED";
+            return true;
+          });
+
+          // Extract unique recent guests with emails
+          const uniqueGuestsMap = new Map();
+          bookingsList.forEach((b) => {
+            if (b.guestEmail && !uniqueGuestsMap.has(b.guestEmail)) {
+              const guestStays = bookingsList.filter((x) => x.guestEmail === b.guestEmail);
+              const totalGuestSpend = guestStays
+                .filter((x) => x.status !== "CANCELLED")
+                .reduce((sum, x) => sum + (x.totalAmount || 0), 0);
+              uniqueGuestsMap.set(b.guestEmail, {
+                email: b.guestEmail,
+                name: b.guestName || "Verified Guest",
+                staysCount: guestStays.length,
+                totalSpend: totalGuestSpend,
+                lastBookingNumber: b.bookingNumber,
+                lastProperty: b.propertyName || "Luxury Stay",
+                lastCheckIn: b.checkIn,
+                lastCheckOut: b.checkOut,
+              });
+            }
+          });
+          const recentGuests = Array.from(uniqueGuestsMap.values());
+
+          return (
+            <div className="space-y-8 animate-in fade-in">
+              {/* 1. REVENUE & FINANCIAL ANALYTICS SUMMARY */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 relative overflow-hidden shadow-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400">Gross Bookings Revenue</span>
+                    <div className="h-9 w-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                      <CreditCard className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
+                    {formatINR(grossRevenue)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1 font-semibold">
+                    {nonCancelled.length} successful stays
+                  </div>
                 </div>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                  {bookingsList.length} Confirmed
-                </span>
+
+                <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 relative overflow-hidden shadow-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400">Total Refunds Processed</span>
+                    <div className="h-9 w-9 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+                      <AlertCircle className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-rose-400 font-mono">
+                    {formatINR(totalRefunded)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1 font-semibold">
+                    {cancelledBookings.length} cancelled reservations
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 relative overflow-hidden shadow-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400">Net Settled Revenue</span>
+                    <div className="h-9 w-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                      <TrendingUp className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                    {formatINR(netRevenue)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1 font-semibold">
+                    Razorpay instant settlements
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 relative overflow-hidden shadow-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400">Avg. Booking Value</span>
+                    <div className="h-9 w-9 rounded-xl bg-violet-500/10 text-violet-400 flex items-center justify-center">
+                      <Percent className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-indigo-300 font-mono">
+                    {formatINR(avgBookingValue)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1 font-semibold">
+                    Per confirmed reservation
+                  </div>
+                </div>
               </div>
 
-              {cancellationNotice && (
-                <div className="mb-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                    <span>{cancellationNotice}</span>
+              {/* 2. RECENTLY VIEWED & CONTACTED GUESTS (GUEST EMAIL & INFO) */}
+              <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-5 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-base font-black text-white flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-indigo-400" />
+                      <span>Recently Contacted Guests &amp; Emails</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Direct contact directory for verified guests who booked or engaged with your properties.
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setCancellationNotice(null)}
-                    className="text-slate-400 hover:text-white text-xs ml-4"
-                  >
-                    Dismiss
-                  </button>
+                  <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                    {recentGuests.length} Guests
+                  </span>
                 </div>
-              )}
 
-              {bookingsList.length === 0 ? (
-                <div className="py-16 text-center space-y-3">
-                  <div className="h-14 w-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
-                    <Calendar className="h-7 w-7" />
+                {recentGuests.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500 text-xs">
+                    No guest contacts recorded yet.
                   </div>
-                  <h4 className="text-base font-bold text-white">No Guest Bookings Yet</h4>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                    Once travelers book your luxury villas or hotel suites with Razorpay, their live reservations, payment receipts, and guest details will appear here automatically.
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-800/80">
-                  {bookingsList.map((item, idx) => {
-                    const isCancelled = item.status === "CANCELLED";
-                    return (
-                      <div key={item.id || idx} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-white">{item.guestName || "Verified Traveler"}</span>
-                            {item.bookingNumber && (
-                              <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
-                                {item.bookingNumber}
-                              </span>
-                            )}
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {recentGuests.map((guest, gIdx) => (
+                      <div
+                        key={guest.email || gIdx}
+                        className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-3 hover:border-slate-700 transition-all flex flex-col justify-between"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-600 to-rose-500 flex items-center justify-center text-white text-xs font-bold">
+                                {guest.name.charAt(0)}
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-bold text-white truncate max-w-[130px]">{guest.name}</h5>
+                                <span className="text-[10px] text-slate-400">{guest.staysCount} stay(s)</span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-black text-emerald-400 font-mono">
+                              {formatINR(guest.totalSpend)}
+                            </span>
                           </div>
-                          <div className="text-xs text-slate-300 font-medium mt-0.5">
-                            {item.propertyName || "Luxury Stay"} · {item.propertyCity || "India"}
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-2">
-                            <Calendar className="h-3 w-3 text-indigo-400" />
-                            <span>{item.checkIn} – {item.checkOut}</span>
-                            <span>·</span>
-                            <span>{item.guests || 2} guests</span>
-                            {item.razorpayPaymentId && (
-                              <>
-                                <span>·</span>
-                                <span className="font-mono text-[10px] text-emerald-400">
-                                  Razorpay: {item.razorpayPaymentId}
-                                </span>
-                              </>
-                            )}
+
+                          <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-[11px] flex items-center justify-between">
+                            <span className="font-mono text-indigo-300 truncate max-w-[180px]">{guest.email}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(guest.email);
+                                setCopiedEmail(guest.email);
+                                setTimeout(() => setCopiedEmail(null), 2000);
+                              }}
+                              className="text-[10px] font-bold text-slate-400 hover:text-white transition-colors ml-2"
+                              title="Copy email to clipboard"
+                            >
+                              {copiedEmail === guest.email ? "Copied!" : "Copy"}
+                            </button>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className={`text-sm font-black ${isCancelled ? "text-slate-500 line-through" : "text-emerald-400"}`}>
-                              {formatINR(item.totalAmount || 0)}
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              {isCancelled ? "Refund Initiated" : "Paid via Razorpay"}
-                            </div>
-                          </div>
-
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                              isCancelled
-                                ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            }`}
-                          >
-                            {item.status || "CONFIRMED"}
+                        <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 truncate max-w-[140px]">
+                            Stay: {guest.lastProperty}
                           </span>
-
-                          {item.bookingNumber && (
-                            <Link
-                              href={`/booking/confirmation?bookingNumber=${encodeURIComponent(item.bookingNumber)}`}
-                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors"
-                              title="View official digital receipt & invoice"
-                            >
-                              <span>Receipt</span>
-                              <ExternalLink className="h-3 w-3" />
-                            </Link>
-                          )}
-
-                          {!isCancelled && item.bookingNumber && (
-                            <button
-                              type="button"
-                              onClick={() => handleSendReminder(item.bookingNumber)}
-                              disabled={sendingReminderId === item.bookingNumber}
-                              className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
-                              title="Send upcoming stay reminder notification & email"
-                            >
-                              {sendingReminderId === item.bookingNumber ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Send className="h-3 w-3" />
-                              )}
-                              <span>Remind</span>
-                            </button>
-                          )}
-
-                          {!isCancelled && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedBookingForCancel({
-                                  id: item.id,
-                                  bookingNumber: item.bookingNumber,
-                                  propertyName: item.propertyName || "Luxury Property",
-                                  checkIn: item.checkIn || "2026-08-28",
-                                  checkOut: item.checkOut || "2026-08-30",
-                                  totalAmount: item.totalAmount || 0,
-                                })
-                              }
-                              className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-semibold transition-colors"
-                              title="Cancel reservation and process refund"
-                            >
-                              Cancel
-                            </button>
-                          )}
+                          <a
+                            href={`mailto:${guest.email}?subject=Regarding Your Stay at ${encodeURIComponent(guest.lastProperty)} [${guest.lastBookingNumber}]`}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white font-bold transition-colors flex items-center gap-1"
+                          >
+                            <Mail className="h-3 w-3" />
+                            <span>Email Guest</span>
+                          </a>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. BOOKINGS FILTER PILLS & LIST */}
+              <div className="p-6 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-4 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-indigo-400" />
+                      <span>Guest Reservations &amp; Receipts</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Completed stays, live reservations, and refund settlement logs.
+                    </p>
+                  </div>
+
+                  {/* Status Filter Buttons */}
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800 text-[11px] font-bold overflow-x-auto scrollbar-none">
+                    {(
+                      [
+                        { id: "ALL", label: `All (${bookingsList.length})` },
+                        { id: "CONFIRMED", label: `Active (${confirmedBookings.length})` },
+                        { id: "COMPLETED", label: `Completed (${completedBookings.length})` },
+                        { id: "CANCELLED", label: `Cancelled (${cancelledBookings.length})` },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setBookingStatusFilter(tab.id)}
+                        className={`px-3 py-1.5 rounded-xl uppercase tracking-wider transition-colors shrink-0 ${
+                          bookingStatusFilter === tab.id
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              )}
+
+                {cancellationNotice && (
+                  <div className="mb-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                      <span>{cancellationNotice}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCancellationNotice(null)}
+                      className="text-slate-400 hover:text-white text-xs ml-4"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
+                {filteredList.length === 0 ? (
+                  <div className="py-16 text-center space-y-3">
+                    <div className="h-14 w-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
+                      <Calendar className="h-7 w-7" />
+                    </div>
+                    <h4 className="text-base font-bold text-white">No Bookings in this Category</h4>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                      Reservations matching the selected filter will appear here in real-time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/80">
+                    {filteredList.map((item, idx) => {
+                      const isCancelled = item.status === "CANCELLED";
+                      const isCompleted = item.status === "COMPLETED" || (item.status === "CONFIRMED" && new Date(item.checkOut) < new Date());
+
+                      return (
+                        <div key={item.id || idx} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white">{item.guestName || "Verified Traveler"}</span>
+                              {item.bookingNumber && (
+                                <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                                  {item.bookingNumber}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                ({item.guestEmail})
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-300 font-medium mt-0.5">
+                              {item.propertyName || "Luxury Stay"} · {item.propertyCity || "India"}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-2">
+                              <Calendar className="h-3 w-3 text-indigo-400" />
+                              <span>{item.checkIn} – {item.checkOut}</span>
+                              <span>·</span>
+                              <span>{item.guests || 2} guests</span>
+                              {item.razorpayPaymentId && (
+                                <>
+                                  <span>·</span>
+                                  <span className="font-mono text-[10px] text-emerald-400">
+                                    Razorpay: {item.razorpayPaymentId}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <div className={`text-sm font-black ${isCancelled ? "text-slate-500 line-through" : "text-emerald-400"}`}>
+                                {formatINR(item.totalAmount || 0)}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {isCancelled ? "Refund Processed" : isCompleted ? "Stay Completed" : "Paid via Razorpay"}
+                              </div>
+                            </div>
+
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                                isCancelled
+                                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                  : isCompleted
+                                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                  : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              }`}
+                            >
+                              {isCancelled ? "CANCELLED" : isCompleted ? "COMPLETED" : (item.status || "CONFIRMED")}
+                            </span>
+
+                            {item.bookingNumber && (
+                              <Link
+                                href={`/booking/confirmation?bookingNumber=${encodeURIComponent(item.bookingNumber)}`}
+                                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors"
+                                title="View official digital receipt & invoice"
+                              >
+                                <span>Receipt</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            )}
+
+                            {!isCancelled && item.bookingNumber && (
+                              <button
+                                type="button"
+                                onClick={() => handleSendReminder(item.bookingNumber)}
+                                disabled={sendingReminderId === item.bookingNumber}
+                                className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                                title="Send upcoming stay reminder notification & email"
+                              >
+                                {sendingReminderId === item.bookingNumber ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Send className="h-3 w-3" />
+                                )}
+                                <span>Remind</span>
+                              </button>
+                            )}
+
+                            {!isCancelled && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedBookingForCancel({
+                                    id: item.id,
+                                    bookingNumber: item.bookingNumber,
+                                    propertyName: item.propertyName || "Luxury Property",
+                                    checkIn: item.checkIn || "2026-08-28",
+                                    checkOut: item.checkOut || "2026-08-30",
+                                    totalAmount: item.totalAmount || 0,
+                                  })
+                                }
+                                className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-semibold transition-colors"
+                                title="Cancel reservation and process refund"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          );
+        })()}
+
+        {/* ========================================================================= */}
+        {/* TAB 7: MASTER ADMIN MANAGEMENT CONTROLS */}
+        {/* ========================================================================= */}
+        {activeTab === "admin" && user.role === "ADMIN" && (
+          <AdminManagementSection currentUser={user} />
         )}
 
         {/* ========================================================================= */}
