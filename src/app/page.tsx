@@ -20,6 +20,7 @@ import {
 import { formatINR, Stay } from "@/data/stays";
 import { fetchAllStaysFromDb } from "@/lib/staysDb";
 import WishlistHeartButton from "@/components/common/WishlistHeartButton";
+import HomeMapDiscoveryTrigger from "@/components/map/HomeMapDiscoveryTrigger";
 
 export default async function Home({
   searchParams,
@@ -331,6 +332,9 @@ export default async function Home({
           </div>
         )}
       </main>
+
+      {/* Floating Map Discovery Pill Button */}
+      <HomeMapDiscoveryTrigger stays={filteredStays} />
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-8 mt-16 text-xs text-slate-500">

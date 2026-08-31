@@ -28,6 +28,19 @@ import {
 import { Stay, formatINR, calculateNights } from "@/data/stays";
 import SearchExpandedModal from "@/components/navbar/SearchExpandedModal";
 import WishlistHeartButton from "@/components/common/WishlistHeartButton";
+import dynamic from "next/dynamic";
+
+const PropertyDiscoveryMap = dynamic(
+  () => import("@/components/map/PropertyDiscoveryMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[400px] w-full rounded-3xl bg-slate-950 flex items-center justify-center text-slate-400 text-xs font-semibold">
+        Loading interactive discovery map...
+      </div>
+    ),
+  }
+);
 
 interface SearchClientContainerProps {
   initialStays: Stay[];
@@ -430,45 +443,23 @@ export default function SearchClientContainer({
 
           {/* RIGHT STAYS GRID & MAP VIEW */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Interactive Map Visual Overlay (when enabled) */}
+            {/* Interactive Leaflet Map with Price Pins */}
             {isMapView && (
-              <div className="w-full h-64 sm:h-80 rounded-3xl bg-slate-900 border border-slate-800 overflow-hidden relative shadow-2xl p-4 flex flex-col justify-between">
-                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]" />
-                <div className="relative z-10 flex items-center justify-between">
-                  <span className="px-3 py-1 rounded-full bg-slate-950/80 backdrop-blur-md text-xs font-bold text-indigo-400 border border-indigo-500/30">
-                    Interactive Map: {headingLocation}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsMapView(false)}
-                    className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* Simulated Pins */}
-                <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-2 my-auto">
-                  {visibleStays.slice(0, 4).map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSelectedStayForModal(s)}
-                      className={`p-2 rounded-xl text-left border transition-all ${
-                        activePinId === s.id
-                          ? "bg-indigo-600 text-white border-indigo-400 scale-105 shadow-lg"
-                          : "bg-slate-950/90 text-slate-200 border-slate-800 hover:border-slate-700"
-                      }`}
-                    >
-                      <div className="text-[11px] font-bold truncate">{s.title}</div>
-                      <div className="text-xs font-black text-rose-400">{formatINR(s.pricePerNight)}</div>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="relative z-10 text-[11px] text-slate-500 text-right">
-                  GPS Coordinates synchronized for verified properties
-                </div>
+              <div className="w-full h-[400px] sm:h-[480px] rounded-3xl overflow-hidden relative shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+                <PropertyDiscoveryMap
+                  stays={visibleStays}
+                  selectedStayId={activePinId}
+                  onSelectStay={(s) => setActivePinId(s?.id || null)}
+                  className="h-full w-full"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsMapView(false)}
+                  className="absolute top-4 right-4 z-30 p-2 rounded-full bg-slate-900/90 text-slate-300 hover:text-white border border-slate-700 shadow-xl"
+                  title="Close Map View"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             )}
 
@@ -621,6 +612,26 @@ export default function SearchClientContainer({
           </div>
         </div>
       </main>
+
+      {/* Floating Bottom Center "Show Map / List" Toggle Button */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in fade-in slide-in-from-bottom-6 duration-300">
+        <button
+          type="button"
+          onClick={() => {
+            setIsMapView(!isMapView);
+            if (!isMapView) {
+              window.scrollTo({ top: 120, behavior: "smooth" });
+            }
+          }}
+          className="px-6 py-3.5 rounded-full bg-slate-900/95 hover:bg-slate-950 text-white font-extrabold text-xs shadow-2xl shadow-black/80 border border-slate-700/80 backdrop-blur-xl flex items-center gap-2.5 transition-all hover:scale-105 hover:border-indigo-500 group"
+        >
+          <div className="h-6 w-6 rounded-full bg-gradient-to-r from-rose-500 to-indigo-600 flex items-center justify-center text-white shadow group-hover:rotate-12 transition-transform">
+            {isMapView ? <Grid className="h-3.5 w-3.5" /> : <Map className="h-3.5 w-3.5" />}
+          </div>
+          <span className="tracking-wide">{isMapView ? "Show List 📋" : "Show Map 🗺️"}</span>
+          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        </button>
+      </div>
 
       {/* Expanded Search Modal Integration */}
       <SearchExpandedModal
