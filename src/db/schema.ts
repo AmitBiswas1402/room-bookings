@@ -8,6 +8,7 @@ import {
   timestamp,
   date,
   decimal,
+  real,
   unique,
 } from "drizzle-orm/pg-core";
 
@@ -339,6 +340,43 @@ export const roomAvailability = pgTable(
     ),
   })
 );
+
+/* =========================
+   DYNAMIC PROPERTY PRICING RULES (MARKET & SEASONAL DEMAND)
+========================= */
+
+export const propertyPricingRules = pgTable("property_pricing_rules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  propertyId: uuid("property_id")
+    .references(() => properties.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+
+  roomId: uuid("room_id")
+    .references(() => rooms.id, {
+      onDelete: "cascade",
+    }),
+
+  startDate: date("start_date").notNull(),
+
+  endDate: date("end_date").notNull(),
+
+  pricePerNight: integer("price_per_night"),
+
+  surgeMultiplier: real("surge_multiplier").default(1.0),
+
+  reason: text("reason").notNull(), // e.g. 'Weekend Surge', 'Diwali / Holiday Demand', 'Peak Season', 'Custom Host Rate'
+
+  isActive: boolean("is_active").default(true).notNull(),
+
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
 
 /* =========================
    BOOKINGS

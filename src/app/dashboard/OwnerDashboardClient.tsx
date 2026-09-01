@@ -46,6 +46,7 @@ import ImageUpload from "@/components/ui/ImageUpload";
 import CancellationModal from "@/components/booking/CancellationModal";
 import NotificationBell from "@/components/navbar/NotificationBell";
 import AdminManagementSection from "@/components/admin/AdminManagementSection";
+import DynamicPricingManager from "@/components/pricing/DynamicPricingManager";
 
 interface UserProfile {
   id: string;
@@ -683,8 +684,8 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
                   : "text-slate-400 hover:text-white hover:bg-slate-900"
               }`}
             >
-              <PartyPopper className="h-4 w-4 text-amber-400" />
-              <span>Holiday Pricing</span>
+              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              <span>Dynamic &amp; Market Pricing</span>
             </button>
 
             <button
@@ -1870,51 +1871,10 @@ export default function OwnerDashboardClient({ user }: OwnerDashboardClientProps
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 4: HOLIDAY & SEASONAL PRICING CALENDAR */}
+        {/* TAB 4: DYNAMIC MARKET & SEASONAL PRICING CALENDAR */}
         {/* ========================================================================= */}
         {activeTab === "holidays" && (
-          <div className="space-y-6 animate-in fade-in">
-            <div className="p-6 rounded-3xl bg-slate-900/70 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <PartyPopper className="h-5 w-5 text-amber-400" />
-                    <span>Seasonal & Holiday Surge Calendar</span>
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Activate dynamic multipliers during nationwide holidays to maximize earnings.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                {HOLIDAY_PRESETS.map((preset) => (
-                  <div
-                    key={preset.name}
-                    className="p-5 rounded-2xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-white">{preset.name}</span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold">
-                          +{preset.surgePercent}% Surge
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5 text-indigo-400" />
-                        <span>{preset.dates}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-900 text-xs">
-                      <span className="text-slate-400">Status: <span className="text-emerald-400 font-bold">Active for all listings</span></span>
-                      <span className="text-indigo-400 font-bold">Configured</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <DynamicPricingManager properties={propertiesList} />
         )}
 
         {/* ========================================================================= */}

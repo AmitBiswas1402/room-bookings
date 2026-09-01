@@ -72,6 +72,17 @@ const ALL_AMENITIES = [
   "Kitchen",
   "Mountain View",
   "Lake View",
+  "Free Parking",
+  "Gym / Fitness",
+];
+
+const PROPERTY_TYPES = [
+  { id: "ALL", label: "All Types" },
+  { id: "VILLA", label: "Villas" },
+  { id: "HOTEL", label: "Hotels" },
+  { id: "APARTMENT", label: "Apartments" },
+  { id: "RESORT", label: "Resorts" },
+  { id: "HOMESTAY", label: "Homestays" },
 ];
 
 export default function SearchClientContainer({
@@ -101,21 +112,27 @@ export default function SearchClientContainer({
   const [isMapView, setIsMapView] = useState(false);
   const [activePinId, setActivePinId] = useState<string | null>(null);
 
-  // Local filter states
-  const [priceMax, setPriceMax] = useState<number>(queryMaxPrice || 25000);
+  // Advanced filter states
+  const [priceMin, setPriceMin] = useState<number>(queryMinPrice || 0);
+  const [priceMax, setPriceMax] = useState<number>(queryMaxPrice || 50000);
   const [minRating, setMinRating] = useState<number>(queryRating || 0);
   const [selectedCategory, setSelectedCategory] = useState<string>(queryCategory || "");
+  const [selectedPropertyType, setSelectedPropertyType] = useState<string>("ALL");
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>(queryAmenities || []);
+  const [minGuests, setMinGuests] = useState<number>(queryGuests || 1);
   const [currentSort, setCurrentSort] = useState<string>(querySort || "recommended");
   const [onlySuperhost, setOnlySuperhost] = useState<boolean>(false);
   const [onlyInstantBook, setOnlyInstantBook] = useState<boolean>(false);
 
   // Update query params in URL
   const applyFilters = (updates: {
+    minPrice?: number;
     maxPrice?: number;
     rating?: number;
     category?: string;
+    propertyType?: string;
     amenities?: string[];
+    guests?: number;
     sort?: string;
   }) => {
     const params = new URLSearchParams();
@@ -123,14 +140,19 @@ export default function SearchClientContainer({
     if (queryDestination) params.set("destination", queryDestination);
     if (queryCheckIn) params.set("checkIn", queryCheckIn);
     if (queryCheckOut) params.set("checkOut", queryCheckOut);
-    if (queryGuests > 1) params.set("guests", String(queryGuests));
+
+    const finalGuests = updates.guests !== undefined ? updates.guests : minGuests;
+    if (finalGuests > 1) params.set("guests", String(finalGuests));
     if (queryRooms > 1) params.set("rooms", String(queryRooms));
 
     const finalCat = updates.category !== undefined ? updates.category : selectedCategory;
     if (finalCat && finalCat !== "all") params.set("category", finalCat);
 
+    const finalMin = updates.minPrice !== undefined ? updates.minPrice : priceMin;
+    if (finalMin > 0) params.set("minPrice", String(finalMin));
+
     const finalMax = updates.maxPrice !== undefined ? updates.maxPrice : priceMax;
-    if (finalMax && finalMax < 25000) params.set("maxPrice", String(finalMax));
+    if (finalMax && finalMax < 50000) params.set("maxPrice", String(finalMax));
 
     const finalRating = updates.rating !== undefined ? updates.rating : minRating;
     if (finalRating > 0) params.set("rating", String(finalRating));
@@ -180,10 +202,13 @@ export default function SearchClientContainer({
   };
 
   const clearAllFilters = () => {
-    setPriceMax(25000);
+    setPriceMin(0);
+    setPriceMax(50000);
     setMinRating(0);
     setSelectedCategory("");
+    setSelectedPropertyType("ALL");
     setSelectedAmenities([]);
+    setMinGuests(1);
     setCurrentSort("recommended");
     setOnlySuperhost(false);
     setOnlyInstantBook(false);
@@ -192,16 +217,30 @@ export default function SearchClientContainer({
     if (queryCity) params.set("city", queryCity);
     if (queryCheckIn) params.set("checkIn", queryCheckIn);
     if (queryCheckOut) params.set("checkOut", queryCheckOut);
-    if (queryGuests > 1) params.set("guests", String(queryGuests));
     router.push(`/search?${params.toString()}`);
   };
 
-  // Client-side filtering for toggles
+  // Client-side filtering for advanced dimensions
   const visibleStays = initialStays.filter((stay) => {
     if (onlySuperhost && !stay.isSuperhost) return false;
     if (onlyInstantBook && !stay.isInstantBook) return false;
+    if (stay.pricePerNight < priceMin) return false;
     if (stay.pricePerNight > priceMax) return false;
     if (minRating > 0 && stay.rating < minRating) return false;
+    if (minGuests > 1 && stay.maxGuests < minGuests) return false;
+    if (
+      selectedPropertyType !== "ALL" &&
+      stay.propertyType &&
+      stay.propertyType.toUpperCase() !== selectedPropertyType.toUpperCase()
+    ) {
+      return false;
+    }
+    if (selectedAmenities.length > 0) {
+      const hasAll = selectedAmenities.every((a) =>
+        stay.amenities.some((sa) => sa.toLowerCase().includes(a.toLowerCase()))
+      );
+      if (!hasAll) return false;
+    }
     return true;
   });
 
@@ -317,7 +356,7 @@ export default function SearchClientContainer({
 
         {/* Main Content Layout: Sidebar Filters + Results Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* LEFT SIDEBAR FILTERS */}
+          {/* LEFT SIDEBAR ADVANCED FILTERS */}
           <div className="space-y-6 lg:border-r lg:border-slate-800/80 lg:pr-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -330,43 +369,121 @@ export default function SearchClientContainer({
                 className="text-xs text-slate-500 hover:text-rose-400 transition-colors flex items-center gap-1"
               >
                 <RotateCcw className="h-3 w-3" />
-                <span>Reset</span>
+                <span>Reset All</span>
               </button>
             </div>
 
-            {/* Price Max Slider */}
-            <div className="space-y-2 pb-5 border-b border-slate-800/80">
+            {/* 1. PRICE RANGE SLIDER & INPUTS */}
+            <div className="space-y-3 pb-5 border-b border-slate-800/80">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300">Max Nightly Price</span>
-                <span className="font-bold text-indigo-400">{formatINR(priceMax)}</span>
+                <span className="font-semibold text-slate-300">Nightly Price Range</span>
+                <span className="font-bold text-indigo-400 font-mono">
+                  {formatINR(priceMin)} – {formatINR(priceMax)}
+                </span>
               </div>
               <input
                 type="range"
-                min="2000"
-                max="25000"
+                min="1000"
+                max="50000"
                 step="500"
                 value={priceMax}
                 onChange={(e) => setPriceMax(Number(e.target.value))}
-                onMouseUp={() => applyFilters({ maxPrice: priceMax })}
-                onTouchEnd={() => applyFilters({ maxPrice: priceMax })}
+                onMouseUp={() => applyFilters({ minPrice: priceMin, maxPrice: priceMax })}
+                onTouchEnd={() => applyFilters({ minPrice: priceMin, maxPrice: priceMax })}
                 className="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer"
               />
-              <div className="flex justify-between text-[10px] text-slate-500">
-                <span>₹2,000</span>
-                <span>₹12,000</span>
-                <span>₹25,000+</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-500 block">Min Price</span>
+                  <input
+                    type="number"
+                    value={priceMin || ""}
+                    placeholder="₹0"
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      setPriceMin(val);
+                      applyFilters({ minPrice: val, maxPrice: priceMax });
+                    }}
+                    className="w-full bg-transparent text-xs font-bold text-white font-mono focus:outline-none"
+                  />
+                </div>
+                <div className="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-500 block">Max Price</span>
+                  <input
+                    type="number"
+                    value={priceMax || ""}
+                    placeholder="₹50000"
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 50000;
+                      setPriceMax(val);
+                      applyFilters({ minPrice: priceMin, maxPrice: val });
+                    }}
+                    className="w-full bg-transparent text-xs font-bold text-white font-mono focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Star Rating Filter */}
+            {/* 2. PROPERTY TYPE FILTER */}
+            <div className="space-y-2 pb-5 border-b border-slate-800/80">
+              <span className="text-xs font-semibold text-slate-300 block">Property Type</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {PROPERTY_TYPES.map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPropertyType(type.id);
+                      applyFilters({ propertyType: type.id });
+                    }}
+                    className={`py-1.5 px-2 text-xs font-semibold rounded-xl border text-center transition-all ${
+                      selectedPropertyType === type.id
+                        ? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+                    }`}
+                  >
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. GUEST CAPACITY FILTER */}
+            <div className="space-y-2 pb-5 border-b border-slate-800/80">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-300">Min Guest Capacity</span>
+                <span className="font-bold text-violet-400">{minGuests}+ Guests</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1 text-xs font-bold">
+                {[1, 2, 4, 6, 8].map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => {
+                      setMinGuests(g);
+                      applyFilters({ guests: g });
+                    }}
+                    className={`py-1.5 rounded-lg border text-center transition-all ${
+                      minGuests === g
+                        ? "bg-violet-600 text-white border-violet-500 shadow-sm"
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                    }`}
+                  >
+                    {g}+
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. GUEST RATING FILTER */}
             <div className="space-y-2 pb-5 border-b border-slate-800/80">
               <span className="text-xs font-semibold text-slate-300 block">Guest Rating</span>
               <div className="grid grid-cols-4 gap-1.5">
                 {[
                   { label: "Any", val: 0 },
+                  { label: "4.0★", val: 4.0 },
                   { label: "4.5★", val: 4.5 },
                   { label: "4.8★", val: 4.8 },
-                  { label: "4.9★", val: 4.9 },
                 ].map((item) => (
                   <button
                     key={item.val}
@@ -387,7 +504,7 @@ export default function SearchClientContainer({
               </div>
             </div>
 
-            {/* Quick Toggles */}
+            {/* 5. QUICK TOGGLES */}
             <div className="space-y-3 pb-5 border-b border-slate-800/80">
               <label className="flex items-center justify-between cursor-pointer group">
                 <span className="text-xs font-medium text-slate-300 group-hover:text-white flex items-center gap-1.5">
@@ -416,7 +533,7 @@ export default function SearchClientContainer({
               </label>
             </div>
 
-            {/* Amenities Multi-Select */}
+            {/* 6. AMENITIES MULTI-SELECT */}
             <div className="space-y-2 pb-5">
               <span className="text-xs font-semibold text-slate-300 block mb-2">Amenities</span>
               <div className="space-y-2">
@@ -509,6 +626,11 @@ export default function SearchClientContainer({
 
                         {/* Top Badges */}
                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                          {stay.propertyType && (
+                            <span className="px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-slate-300 border border-slate-700">
+                              {stay.propertyType}
+                            </span>
+                          )}
                           {stay.isSuperhost && (
                             <span className="px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-amber-300 border border-amber-500/30 flex items-center gap-1">
                               <ShieldCheck className="h-3 w-3" />
@@ -519,6 +641,12 @@ export default function SearchClientContainer({
                             <span className="px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
                               <Zap className="h-3 w-3" />
                               <span>Instant Book</span>
+                            </span>
+                          )}
+                          {stay.isHolidayAvailable && (
+                            <span className="px-2.5 py-1 rounded-full bg-rose-500/20 backdrop-blur-md text-[10px] font-bold text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                              <Zap className="h-3 w-3 text-rose-400" />
+                              <span>Dynamic Pricing</span>
                             </span>
                           )}
                         </div>
